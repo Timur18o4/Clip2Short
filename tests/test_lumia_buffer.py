@@ -2,7 +2,7 @@ import json
 import unittest
 from unittest.mock import Mock
 import requests
-from cng_clip_service.lumia import Lumia
+from clip2short.lumia import Lumia
 
 
 class LumiaBufferTests(unittest.TestCase):

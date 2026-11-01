@@ -5,8 +5,8 @@
 Standardmäßig wird der lokale Windows-Anwendungsdatenordner verwendet. Für eine Installation mit allen Laufzeitdaten unter dem Programmordner kann die Einrichtung aus PowerShell erfolgen:
 
 ```powershell
-Set-Location E:\Scripte\CNG_Clip_Dienst
-$env:CNG_CLIP_DATA = Join-Path $PWD 'Daten'
+Set-Location E:\Scripte\Clip2Short
+$env:CLIP2SHORT_CLIP_DATA = Join-Path $PWD 'Daten'
 .\EINRICHTEN.cmd
 ```
 
@@ -14,7 +14,7 @@ Die Einrichtung schreibt den aufgelösten Ort in `installation.json`. Spätere S
 
 ## Lumia-Befehl
 
-Der Name muss exakt `cng-clip-dienst` lauten. Im Codefeld ist der vollständige Inhalt von `lumia/cng-clip-dienst.js` einschließlich `async function() { ... }` erforderlich. Den Befehl nur für den Streamer freigeben und die Warteschlange überspringen lassen. Keine eigene Chatbot-Antwort hinzufügen. Änderungen mit „Ausfüllen und speichern“ und gegebenenfalls „Aktualisierung“ übernehmen.
+Der Name muss exakt `clip2short` lauten. Im Codefeld ist der vollständige Inhalt von `lumia/clip2short.js` einschließlich `async function() { ... }` erforderlich. Den Befehl nur für den Streamer freigeben und die Warteschlange überspringen lassen. Keine eigene Chatbot-Antwort hinzufügen. Änderungen mit „Ausfüllen und speichern“ und gegebenenfalls „Aktualisierung“ übernehmen.
 
 Die drei normalen Stufen sind:
 
@@ -50,6 +50,16 @@ Nach dem ersten Durchlauf bei TikTok prüfen, ob das Video tatsächlich unter �
 Protokolle liegen im Datenordner. Vor dem Teilen einer Fehlerbeschreibung Kontodaten, Transkripte, lokale Pfade und etwaige vertrauliche Inhalte entfernen. Keine Zugangsdaten oder vollständigen Datenordner in öffentliche Issues hochladen.
 
 ## Aktualisieren
+
+### Umstellung auf Clip2Short mit Version 0.1.1
+
+Die Programmmodule heißen jetzt `clip2short`, der Lumia-Befehl heißt `clip2short` und sein Code steht in `lumia/clip2short.js`. Befehl und Programmdateien müssen gemeinsam aktualisiert werden. Die neuen Umgebungsvariablen beginnen mit `CLIP2SHORT_`.
+
+Vor der Umstellung den bisherigen Autostart ausschalten und den Dienst stoppen. Den vorhandenen Datenordner mit Datenbank, Zugangsdaten und Konfiguration behalten; `installation.json` muss weiterhin auf diesen Ordner zeigen. Wird der Programmordner verschoben, die absoluten Medienpfade bestehender Aufträge entsprechend anpassen. In der privaten Konfiguration `command` auf `clip2short` setzen. Den vorhandenen Lumia-Befehl umbenennen und seinen Code ersetzen. Danach den Dienst und den neuen Autostart aktivieren.
+
+Die Einrichtungsroutine dabei nicht erneut ausführen. Der gespeicherte Aktivierungszeitpunkt und die bekannten Clip-IDs dürfen nicht zurückgesetzt werden, damit keine alten Clips oder doppelten Uploads entstehen. Bereits vorhandene Untertitel-Caches können in der neuen Version neu erzeugt werden.
+
+### Reguläres Update
 
 1. Laufende Verarbeitung abschließen lassen und `STOPPEN.cmd` ausführen.
 2. Datenbank, Zugangsdaten und lokale Konfiguration sichern. Diese Dateien privat behalten.

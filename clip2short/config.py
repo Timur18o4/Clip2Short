@@ -9,15 +9,15 @@ from pathlib import Path
 
 
 def data_dir():
-    override=os.environ.get('CNG_CLIP_DATA')
+    override=os.environ.get('CLIP2SHORT_CLIP_DATA')
     marker=Path(__file__).resolve().parents[1]/'installation.json'
     if not override and marker.exists(): override=json.loads(marker.read_text(encoding='utf-8'))['data_dir']
-    return Path(override or str(Path(os.environ.get('LOCALAPPDATA',Path.home()))/'CNGClipDienst')).resolve()
+    return Path(override or str(Path(os.environ.get('LOCALAPPDATA',Path.home()))/'Clip2Short')).resolve()
 
 
 def defaults():
     return {'version':2,'channel':'timur18o4','port':39242,'lumia_url':'http://127.0.0.1:39231/api',
-            'command':'cng-clip-dienst','privacy':'SELF_ONLY','enabled':True,'model':'medium',
+            'command':'clip2short','privacy':'SELF_ONLY','enabled':True,'model':'medium',
             'fps':60,'auto_upload':True,'require_face':True,'vision':True,'brand':'CNG-PLATTFORM.COM',
             'profiles':{'camera':{'main':{'x':.234375,'y':0,'width':.5489583,'height':1}},
                         'gameplay':{'main':{'x':.234375,'y':0,'width':.5270833,'height':1},

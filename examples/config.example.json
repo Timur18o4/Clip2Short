@@ -3,7 +3,7 @@
   "channel": "mein_twitch_kanal",
   "port": 39242,
   "lumia_url": "http://127.0.0.1:39231/api",
-  "command": "cng-clip-dienst",
+  "command": "clip2short",
   "privacy": "SELF_ONLY",
   "enabled": true,
   "model": "medium",

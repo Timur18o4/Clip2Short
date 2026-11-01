@@ -4,7 +4,7 @@ Windows-Hintergrunddienst für **neue Twitch-Clips → Hochkantvideo → Unterti
 
 [![Tests](https://github.com/Timur18o4/Clip2Short/actions/workflows/tests.yml/badge.svg)](https://github.com/Timur18o4/Clip2Short/actions/workflows/tests.yml)
 
-**v0.1.0 · erste öffentliche Testversion.** Die Bildaufteilung und der Chatbezug werden automatisch eingeschätzt. Bei unsicherer Kameraerkennung hält der Dienst den Clip zur Prüfung an. Die Referenzprofile müssen zu den eigenen OBS-Szenen passen.
+**v0.1.1 · öffentliche Testversion.** Die Bildaufteilung und der Chatbezug werden automatisch eingeschätzt. Bei unsicherer Kameraerkennung hält der Dienst den Clip zur Prüfung an. Die Referenzprofile müssen zu den eigenen OBS-Szenen passen.
 
 ## Funktionen
 
@@ -55,13 +55,13 @@ Die lokale Analyse verwendet standardmäßig die CPU. Python, FFmpeg, Lumia, Mod
 
 ## Einrichtung
 
-1. Das [Windows-Programm-ZIP aus dem Release](https://github.com/Timur18o4/Clip2Short/releases) entpacken oder das Repository klonen. Einen dauerhaften Ordner wählen, beispielsweise `E:\Scripte\CNG_Clip_Dienst`.
+1. Das [Windows-Programm-ZIP aus dem Release](https://github.com/Timur18o4/Clip2Short/releases) entpacken oder das Repository klonen. Einen dauerhaften Ordner wählen, beispielsweise `E:\Scripte\Clip2Short`.
 2. Python und vollständiges FFmpeg installieren. Lumia starten, die Konten verbinden und die lokale API aktivieren.
 3. `EINRICHTEN.cmd` ausführen. Das erstellt die Python-Umgebung, installiert die Abhängigkeiten und fragt **den eigenen Twitch-Kanal sowie den lokalen Lumia-API-Token** ab. Der Token wird verdeckt eingegeben und mit Windows-DPAPI gespeichert.
-4. In Lumia einen Chat-Befehl **`cng-clip-dienst`** anlegen:
+4. In Lumia einen Chat-Befehl **`clip2short`** anlegen:
    - nur für den Streamer freigeben;
    - „Warteschlange überspringen“ aktivieren;
-   - den vollständigen Inhalt von [lumia/cng-clip-dienst.js](lumia/cng-clip-dienst.js) als Code-Aktion einfügen;
+   - den vollständigen Inhalt von [lumia/clip2short.js](lumia/clip2short.js) als Code-Aktion einfügen;
    - keine Chat-Antwort ergänzen und die Lumia-Änderungen übernehmen.
 5. Den Twitch-Clip-Alarm aktivieren. **„Clips vom Streamer ignorieren“ ausschalten.** Der Alarm benötigt Stream-Modus, sofern er nicht ausdrücklich so eingestellt wurde, diesen zu ignorieren.
 6. `STARTEN.cmd` öffnen. Im Status „Lumia prüfen“ aufrufen und die Bildprofile unter „Bildprofile anpassen“ auf die eigenen OBS-Szenen abstimmen.
@@ -82,18 +82,18 @@ Weitere Details: [Einrichtung und Fehlerbehebung](docs/SETUP.md), [Konfiguration
 | `http://127.0.0.1:39242` | Lokaler Status, Sichtbarkeit, Bildprofile und Video-Vorschau |
 | „KI-Vorschau erstellen“ | Lokale neue Gestaltung eines bereits übergebenen Clips; kein erneuter TikTok-Upload |
 
-Der Windows-Auftrag heißt **CNG Clip Dienst**. Er läuft im angemeldeten Benutzerkonto, ohne Administratorrechte und ohne Laufzeitlimit. Bei unerwartetem Fehler sind bis zu zehn Neustartversuche im Minutenabstand vorgesehen. Falls die Aufgabenplanung nicht eingerichtet werden kann, verwendet das Skript den Benutzer-Autostart als Rückfallweg. Es handelt sich um einen Hintergrundprozess in der Benutzersitzung, nicht um einen Systemdienst vor der Anmeldung.
+Der Windows-Auftrag heißt **Clip2Short**. Er läuft im angemeldeten Benutzerkonto, ohne Administratorrechte und ohne Laufzeitlimit. Bei unerwartetem Fehler sind bis zu zehn Neustartversuche im Minutenabstand vorgesehen. Falls die Aufgabenplanung nicht eingerichtet werden kann, verwendet das Skript den Benutzer-Autostart als Rückfallweg. Es handelt sich um einen Hintergrundprozess in der Benutzersitzung, nicht um einen Systemdienst vor der Anmeldung.
 
 ## Daten und Zugriffsschutz
 
-Der Standard-Datenordner ist `%LOCALAPPDATA%\CNGClipDienst`. `installation.json` merkt sich den tatsächlich gewählten Ort. Mit `CNG_CLIP_DATA` kann vor der Einrichtung ein eigener Ort gewählt werden.
+Der Standard-Datenordner ist `%LOCALAPPDATA%\Clip2Short`. `installation.json` merkt sich den tatsächlich gewählten Ort. Mit `CLIP2SHORT_CLIP_DATA` kann vor der Einrichtung ein eigener Ort gewählt werden.
 
 - Originale: `clips/<Clip-ID>.mp4`; während des Downloads zunächst `.part`.
 - Fertige Videos: `renders/<Clip-ID>.mp4`; lokale Varianten enden auf `-preview.mp4`.
 - Untertitelcache: `transcripts/`; Berichte: `reports/`.
 - Datenbank: `jobs.sqlite3`; Protokolle: `service.log` und gegebenenfalls `runtime.log`.
-- Temporäres Rendering: `cng-scenes-*` im Datenordner, mit weiteren `.cng-render-*`-Ordnern.
-- Extrahierte Tonspuren: `cng-transcribe-*` im Windows-Tempordner.
+- Temporäres Rendering: `clip2short-scenes-*` im Datenordner, mit weiteren `.clip2short-render-*`-Ordnern.
+- Extrahierte Tonspuren: `clip2short-transcribe-*` im Windows-Tempordner.
 
 Originale, fertige Videos und Transkript-Caches bleiben gespeichert. Arbeitsordner werden normalerweise entfernt; nach hartem Prozessabbruch können Reste verbleiben. **Es gibt keine automatische Videolöschung.**
 

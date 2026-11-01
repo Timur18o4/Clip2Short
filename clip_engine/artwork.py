@@ -146,7 +146,7 @@ def build_layout(project: dict, metadata: dict) -> dict:
 def _background():
     result = Image.new("RGB", (WIDTH, HEIGHT), BACKGROUND)
     pixels = result.load()
-    # Three-stop radial gradient from the original CNG composition.
+    # Three-stop radial gradient from the original Clip2Short composition.
     stops = ((0.0, (48, 36, 20)), (0.48, (22, 20, 25)), (0.85, BACKGROUND))
     for y in range(660):
         for x in range(WIDTH):

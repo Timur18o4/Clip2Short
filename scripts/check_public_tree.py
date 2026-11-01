@@ -5,7 +5,7 @@ import subprocess
 import sys
 
 ROOT=Path(__file__).resolve().parents[1]
-DIRECTORIES={'cng_clip_service','clip_engine','lumia','tests','docs','examples','scripts','.github'}
+DIRECTORIES={'clip2short','clip_engine','lumia','tests','docs','examples','scripts','.github'}
 ROOT_FILES={'README.md','CHANGELOG.md','SECURITY.md','VERSION','.gitignore','.gitattributes',
             'requirements.txt','requirements-test.txt','start_service.py','Verwalten.ps1',
             'STARTEN.cmd','STOPPEN.cmd','EINRICHTEN.cmd','AUTOSTART AN.cmd','AUTOSTART AUS.cmd'}

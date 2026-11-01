@@ -23,7 +23,7 @@ class PublicationTests(unittest.TestCase):
         self.assertNotIn(canary,str(result.exception))
 
     def test_runtime_variable_reference_is_safe_to_publish(self):
-        path=self.root/'README.md';path.write_text('Token wird über CNG_LUMIA_TOKEN oder verdeckt eingegeben.',encoding='utf8')
+        path=self.root/'README.md';path.write_text('Token wird über CLIP2SHORT_LUMIA_TOKEN oder verdeckt eingegeben.',encoding='utf8')
         self.assertEqual(publication.validate_files(self.root,[path]),1)
 
 

@@ -12,7 +12,7 @@ class Lumia:
     def call(self,kind,params=None,timeout=20):
         url=self.cfg['lumia_url'].rstrip('/')+'/send'
         try:
-            response=self.session.post(url,params={'token':self.credentials['lumia_token'],'name':'CNG Clip Dienst'},json={'type':kind,'params':params or {}},timeout=timeout)
+            response=self.session.post(url,params={'token':self.credentials['lumia_token'],'name':'Clip2Short'},json={'type':kind,'params':params or {}},timeout=timeout)
             data=response.json()
         except requests.RequestException as exc:
             # Never echo requests' URL/exception: it contains the API token.
@@ -25,14 +25,14 @@ class Lumia:
 
     def command(self,stage,ident,**extra):
         return self.call('chat-command',{'value':self.cfg['command'],'extraSettings':{
-            'cng_stage':stage,'cng_clip_id':ident,'cng_bridge_key':self.credentials['bridge_key'],
-            'cng_service_url':f"http://127.0.0.1:{self.cfg['port']}",**extra}},timeout=30)
+            'clip2short_stage':stage,'clip2short_clip_id':ident,'clip2short_bridge_key':self.credentials['bridge_key'],
+            'clip2short_service_url':f"http://127.0.0.1:{self.cfg['port']}",**extra}},timeout=30)
 
     def recent_clip_events(self):
         try:
             response=self.session.post(self.cfg['lumia_url'].rstrip('/')+'/mcp',
                 headers={'Authorization':'Bearer '+self.credentials['lumia_token'],'Accept':'application/json, text/event-stream'},
-                json={'jsonrpc':'2.0','id':'cng-clips','method':'tools/call','params':{'name':'get_recent_events','arguments':{'type':'clip','origin':'twitch','limit':200}}},timeout=12)
+                json={'jsonrpc':'2.0','id':'clip2short-clips','method':'tools/call','params':{'name':'get_recent_events','arguments':{'type':'clip','origin':'twitch','limit':200}}},timeout=12)
             response.raise_for_status()
             if response.headers.get('Content-Type','').startswith('text/event-stream'):
                 messages=[json.loads(line[5:].strip()) for line in response.text.splitlines() if line.startswith('data:')]
@@ -46,7 +46,7 @@ class Lumia:
     def events(self,stop,on_event,on_status):
         import websocket
         parsed=urlparse(self.cfg['lumia_url']); scheme='wss' if parsed.scheme=='https' else 'ws'
-        url=f"{scheme}://{parsed.netloc}{parsed.path}?token={quote(self.credentials['lumia_token'])}&name=CNG%20Clip%20Dienst"
+        url=f"{scheme}://{parsed.netloc}{parsed.path}?token={quote(self.credentials['lumia_token'])}&name=Clip2Short"
         backoff=2
         while not stop.is_set():
             socket=None

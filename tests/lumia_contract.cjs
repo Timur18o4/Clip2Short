@@ -1,12 +1,12 @@
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const source=fs.readFileSync(require('node:path').join(__dirname,'../lumia/cng-clip-dienst.js'),'utf8');
+const source=fs.readFileSync(require('node:path').join(__dirname,'../lumia/clip2short.js'),'utf8');
 async function run(stage, overrides={}) {
   const calls=[], posts=[], actionsCalled=[]; let doneCount=0;
-  const variables={originType:'api',cng_stage:stage,cng_clip_id:'NewClip123',cng_service_url:'http://127.0.0.1:39242',cng_bridge_key:'x'.repeat(40),cng_stream_title:'Aktueller Titel',...overrides.variables};
+  const variables={originType:'api',clip2short_stage:stage,clip2short_clip_id:'NewClip123',clip2short_service_url:'http://127.0.0.1:39242',clip2short_bridge_key:'x'.repeat(40),clip2short_stream_title:'Aktueller Titel',...overrides.variables};
   const clip={id:'NewClip123',game_id:'509658',broadcaster_id:'123',video_id:'999',title:'Ein neuer Moment',created_at:'2026-10-31T18:00:00Z'};
-  const ctx={AbortSignal,URL,done:()=>doneCount++,log:()=>{},delay:async()=>{},getVariable:async n=>variables[n],getToken:async()=> 'fixture',getClientId:async()=> 'fixture-client',resolveVariables:async()=>stage==='editorial'?JSON.stringify({title:'Feiertag? Jetzt bin ich raus',chat_id:null,reply_excerpt:''}):'Wieder schnell geantwortet.\n\n#Humor #Reaktion #CNG #JustChatting',actions:async a=>{actionsCalled.push(a);if(overrides.actionThrows)throw Error('Upload unterbrochen');},fetch:async(url,options)=>{
+  const ctx={AbortSignal,URL,done:()=>doneCount++,log:()=>{},delay:async()=>{},getVariable:async n=>variables[n],getToken:async()=> 'fixture',getClientId:async()=> 'fixture-client',resolveVariables:async()=>stage==='editorial'?JSON.stringify({title:'Feiertag? Jetzt bin ich raus',chat_id:null,reply_excerpt:''}):'Wieder schnell geantwortet.\n\n#Humor #Reaktion #Streaming #JustChatting',actions:async a=>{actionsCalled.push(a);if(overrides.actionThrows)throw Error('Upload unterbrochen');},fetch:async(url,options)=>{
     calls.push(url);let data={};const body=options.body?JSON.parse(options.body):{}; if(options.body)posts.push([new URL(url).pathname,body]);
     if(url.includes('/helix/clips?')) data={data:[clip]};
     else if(url.includes('/helix/games?'))data={data:[{name:'Just Chatting'}]};

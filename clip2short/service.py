@@ -81,7 +81,7 @@ class Service:
                 fcntl.flock(self.instance.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
         except OSError:
             if self.instance: self.instance.close()
-            raise RuntimeError('Der CNG Clip Dienst läuft bereits oder die Dienstsperre ist nicht zugänglich.') from None
+            raise RuntimeError('Der Clip2Short läuft bereits oder die Dienstsperre ist nicht zugänglich.') from None
         self.store=Store(self.root); self.lumia=Lumia(self.cfg,self.credentials)
         self.stop=threading.Event(); self.work=queue.Queue(); self.threads=[]
         self.status='Startet …'; self.resolving={}; self.guard=threading.RLock()
@@ -117,7 +117,7 @@ class Service:
         try:
             title=job.get('stream_title') or self.lumia.variable('twitch_channel_title')
             if not self.store.update_if(ident,'resolving',stream_title=str(title)): return
-            self.lumia.command('resolve',ident,cng_stream_title=str(title),cng_armed_at=self.store.armed_at)
+            self.lumia.command('resolve',ident,clip2short_stream_title=str(title),clip2short_armed_at=self.store.armed_at)
             self.log('Neuer Twitch-Clip wird durch Lumia geprüft: '+ident)
         except Exception as exc: self.store.update_if(ident,'resolving',error=str(exc)); self.log(str(exc))
 
@@ -172,7 +172,7 @@ class Service:
         job=self.store.get(ident)
         self.store.update_if(ident,job['state'],**{prefix+'editorial_context':context,prefix+'editorial':None,prefix+'editorial_error':''})
         self.log('Lumia erstellt einen eigenen Titel und prüft den Chatbezug …')
-        self.lumia.command('editorial',ident,cng_analysis_kind='preview' if preview else 'main')
+        self.lumia.command('editorial',ident,clip2short_analysis_kind='preview' if preview else 'main')
         deadline=time.monotonic()+150
         while time.monotonic()<deadline:
             if self.stop.wait(.5):raise RuntimeError('Abgebrochen.')
@@ -306,7 +306,7 @@ class Service:
         from clip_engine.render import render_project
         from clip_engine.media import find_binary
         pieces=[]
-        with tempfile.TemporaryDirectory(prefix='cng-scenes-',dir=self.root) as temp:
+        with tempfile.TemporaryDirectory(prefix='clip2short-scenes-',dir=self.root) as temp:
             for index,scene in enumerate(scenes):
                 project={**base,'mode':'just_chatting' if scene['name']=='camera' else 'gameplay',
                          'crops':scene['crops'],'segments':[{'start':scene['start'],'end':scene['end']}],

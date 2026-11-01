@@ -40,7 +40,7 @@ def _check_cancel(cancel: Any) -> None:
 
 
 def _user_cache_dir() -> Path:
-    from cng_clip_service.config import data_dir
+    from clip2short.config import data_dir
     return data_dir() / 'transcripts'
 
 
@@ -72,7 +72,7 @@ def _fingerprint(source: Path, cancel: Any = None) -> dict:
 def _cache_path(metadata: dict) -> Path:
     serialized = json.dumps(metadata, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     key = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
-    return _user_cache_dir() / f"{key}.cng-transcript.json"
+    return _user_cache_dir() / f"{key}.clip2short-transcript.json"
 
 
 def _valid_pages(pages: Any, ranges: list[dict]) -> bool:
@@ -364,7 +364,7 @@ def transcribe_project(project: dict, progress: Progress | None = None, cancel: 
     pages: list[dict] = []
     total = sum(part["end"] - part["start"] for part in ranges)
     completed = 0.0
-    with tempfile.TemporaryDirectory(prefix="cng-transcribe-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="clip2short-transcribe-") as temporary:
         for index, part in enumerate(ranges):
             _check_cancel(cancel)
             start, end = part["start"], part["end"]

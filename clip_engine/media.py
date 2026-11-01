@@ -21,13 +21,13 @@ def find_binary(name: str) -> str:
     """Find FFmpeg/FFprobe without depending on a Node or Remotion runtime."""
     if name not in {"ffmpeg", "ffprobe"}:
         raise ValueError("Nur ffmpeg und ffprobe werden unterstützt.")
-    override = os.environ.get(f"CNG_{name.upper()}")
+    override = os.environ.get(f"CLIP2SHORT_{name.upper()}")
     executable = name + (".exe" if os.name == "nt" else "")
     if override:
         path = Path(override).expanduser()
         if path.is_file():
             return str(path.resolve())
-        raise RuntimeError(f"CNG_{name.upper()} verweist auf keine Datei: {override}")
+        raise RuntimeError(f"CLIP2SHORT_{name.upper()} verweist auf keine Datei: {override}")
     candidates: list[Path] = []
     on_path = shutil.which(name)
     if on_path:

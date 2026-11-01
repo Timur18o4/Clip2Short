@@ -1,5 +1,5 @@
 import unittest
-from cng_clip_service.editorial import validate,messages,instruction
+from clip2short.editorial import validate,messages,instruction
 from clip_engine.artwork import build_layout
 
 

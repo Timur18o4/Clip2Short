@@ -36,11 +36,11 @@ Die automatische Erkennung wählt ein Profil und kann es innerhalb des Clips wec
 
 | Name | Verwendung |
 |---|---|
-| `CNG_CLIP_DATA` | Datenordner überschreiben; bei Einrichtung wird der Ort in `installation.json` festgehalten |
-| `CNG_TWITCH_CHANNEL` | Eigener Kanal für eine vorbereitete Einrichtung; alternativ `setup --channel KANAL` |
-| `CNG_LUMIA_TOKEN` | Optionaler Token für eine vorbereitete Einrichtung; bevorzugt verdeckte Eingabe verwenden; niemals in Git committen |
-| `CNG_FFMPEG` | Vollständiger Pfad zu `ffmpeg.exe`, falls die automatische Suche nicht passt |
-| `CNG_FFPROBE` | Vollständiger Pfad zu `ffprobe.exe` |
+| `CLIP2SHORT_CLIP_DATA` | Datenordner überschreiben; bei Einrichtung wird der Ort in `installation.json` festgehalten |
+| `CLIP2SHORT_TWITCH_CHANNEL` | Eigener Kanal für eine vorbereitete Einrichtung; alternativ `setup --channel KANAL` |
+| `CLIP2SHORT_LUMIA_TOKEN` | Optionaler Token für eine vorbereitete Einrichtung; bevorzugt verdeckte Eingabe verwenden; niemals in Git committen |
+| `CLIP2SHORT_FFMPEG` | Vollständiger Pfad zu `ffmpeg.exe`, falls die automatische Suche nicht passt |
+| `CLIP2SHORT_FFPROBE` | Vollständiger Pfad zu `ffprobe.exe` |
 
 ## Dateien und Aufbewahrung
 
@@ -50,13 +50,13 @@ Die automatische Erkennung wählt ein Profil und kann es innerhalb des Clips wec
 | `clips/<ID>.mp4` | Heruntergeladene Originaldatei | Nein |
 | `renders/<ID>.mp4` | Fertiger Hochkantclip | Nein |
 | `renders/<ID>-preview.mp4` | Lokale KI-Vorschau | Nein; eine neue Vorschau kann diese Variante ersetzen |
-| `transcripts/*.cng-transcript.json` | Cache der Untertitelseiten | Nein |
+| `transcripts/*.clip2short-transcript.json` | Cache der Untertitelseiten | Nein |
 | `reports/<ID>.json` | Analyse, Szenen, Untertitel und Gestaltung | Nein |
-| `cng-scenes-*/` | Teilvideos und Renderarbeitsdateien; darunter `.cng-render-*` | Normalerweise nach Verarbeitung |
+| `clip2short-scenes-*/` | Teilvideos und Renderarbeitsdateien; darunter `.clip2short-render-*` | Normalerweise nach Verarbeitung |
 | `jobs.sqlite3` | Aktivierungszeitpunkt, bekannte IDs, Zustände und Freigaben | Nein |
 | `config.json`, `credentials.dpapi` | Lokale Einstellungen und verschlüsselte Zugangsdaten | Nein |
 | `service.log`, `runtime.log` | Betriebsprotokolle | Nein |
 
-Weitere temporäre Dateien befinden sich im Windows-Tempordner: `cng-transcribe-*` für Tonspuren, `cng-preview-*` für Standbildvorschauen. Nach hartem Prozessabbruch können temporäre Reste bestehen bleiben. Modellgewichte verwenden die Caches der jeweiligen Bibliotheken; sie gehören nicht zum Repository oder Programm-ZIP.
+Weitere temporäre Dateien befinden sich im Windows-Tempordner: `clip2short-transcribe-*` für Tonspuren, `clip2short-preview-*` für Standbildvorschauen. Nach hartem Prozessabbruch können temporäre Reste bestehen bleiben. Modellgewichte verwenden die Caches der jeweiligen Bibliotheken; sie gehören nicht zum Repository oder Programm-ZIP.
 
 Laufzeitdaten können Transkripte, sichtbare Chattexte, Kontonamen und lokale Dateipfade enthalten. Sie bleiben privat und sind über `.gitignore` sowie die Veröffentlichungskontrolle ausgeschlossen.

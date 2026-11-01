@@ -5,8 +5,8 @@ import time
 import unittest
 from pathlib import Path
 import requests
-from cng_clip_service.service import Service
-from cng_clip_service.server import serve
+from clip2short.service import Service
+from clip2short.server import serve
 
 
 class HttpTests(unittest.TestCase):

@@ -7,11 +7,11 @@ from datetime import datetime,timedelta,timezone
 from pathlib import Path
 from unittest.mock import Mock,patch
 
-from cng_clip_service.store import Store,now
-from cng_clip_service.service import Service,clip_id,allowed_media
-from cng_clip_service.captions import validate_caption,prompt,category_tag
-from cng_clip_service.layout import classify,pixel_crop
-from cng_clip_service.downloads import public_media
+from clip2short.store import Store,now
+from clip2short.service import Service,clip_id,allowed_media
+from clip2short.captions import validate_caption,prompt,category_tag
+from clip2short.layout import classify,pixel_crop
+from clip2short.downloads import public_media
 
 
 class ServiceTests(unittest.TestCase):
@@ -67,7 +67,7 @@ class ServiceTests(unittest.TestCase):
 
     def test_parallel_upload_claim_is_single_use(self):
         self.ready(); outcomes=[]
-        def call(): outcomes.append(self.service.claim_upload(self.clip['id'],'Eine Reaktion.\n\n#Reaktion #Humor #CNG #JustChatting')['claimed'])
+        def call(): outcomes.append(self.service.claim_upload(self.clip['id'],'Eine Reaktion.\n\n#Reaktion #Humor #Streaming #JustChatting')['claimed'])
         threads=[threading.Thread(target=call) for _ in range(4)]
         for t in threads:t.start()
         for t in threads:t.join()
@@ -76,13 +76,13 @@ class ServiceTests(unittest.TestCase):
 
     def test_public_setting_does_not_promote_existing_private_job(self):
         self.ready();self.service.cfg['privacy']='PUBLIC_TO_EVERYONE'
-        result=self.service.claim_upload(self.clip['id'],'Eine Reaktion.\n\n#Reaktion #Humor #CNG #JustChatting')
+        result=self.service.claim_upload(self.clip['id'],'Eine Reaktion.\n\n#Reaktion #Humor #Streaming #JustChatting')
         self.assertEqual(result['privacy'],'SELF_ONLY')
 
     def test_mutated_video_and_invalid_caption_block_upload(self):
         job=self.ready();Path(job['output']).write_bytes(b'changed')
         with self.assertRaisesRegex(ValueError,'geändert'):
-            self.service.claim_upload(self.clip['id'],'Eine Reaktion.\n\n#Reaktion #Humor #CNG #JustChatting')
+            self.service.claim_upload(self.clip['id'],'Eine Reaktion.\n\n#Reaktion #Humor #Streaming #JustChatting')
         self.assertEqual(self.service.store.get(self.clip['id'])['state'],'ready')
 
     def test_crash_at_upload_barrier_never_returns_to_ready(self):
@@ -132,7 +132,7 @@ class ServiceTests(unittest.TestCase):
 
     def test_public_download_revalidates_clip_identity_and_prefers_landscape(self):
         self.clip['broadcaster_id']='123'
-        from cng_clip_service.store import instant
+        from clip2short.store import instant
         info={'display_id':self.clip['id'],'channel_id':'123','timestamp':instant(self.clip['created_at']).timestamp(),
               'formats':[{'format_id':'portrait1080','height':1080,'url':'https://a.twitchcdn.net/portrait.mp4'},
                          {'format_id':'720','height':720,'url':'https://a.twitchcdn.net/landscape.mp4'}]}
@@ -155,9 +155,9 @@ class ContractTests(unittest.TestCase):
             self.assertFalse(allowed_media(url))
 
     def test_caption_contract_and_category(self):
-        text='Wieder zu schnell geantwortet.\n\n#Humor #Reaktion #CNG #JustChatting'
+        text='Wieder zu schnell geantwortet.\n\n#Humor #Reaktion #Streaming #JustChatting'
         self.assertEqual(validate_caption(text,'Just Chatting'),text)
-        for bad in [text.replace('#JustChatting','#Fortnite'),text.replace('#CNG','#Humor'),'A'*151+'\n\n#A #B #C #JustChatting',text.replace('\n\n','\n')]:
+        for bad in [text.replace('#JustChatting','#Fortnite'),text.replace('#Streaming','#Humor'),'A'*151+'\n\n#A #B #C #JustChatting',text.replace('\n\n','\n')]:
             with self.assertRaises(ValueError):validate_caption(bad,'Just Chatting')
         with self.assertRaises(ValueError):validate_caption('{{tts=Text}}\n\n#A #B #C #JustChatting','Just Chatting')
         self.assertEqual(category_tag('Tom Clancy’s Rainbow Six® Siege'),'#TomClancysRainbowSixSiege')

@@ -12,7 +12,7 @@ from .config import data_dir,load_config,save_config,save_secrets,channel_name
 def main():
     for stream in (sys.stdout,sys.stderr):
         if stream and hasattr(stream,'reconfigure'): stream.reconfigure(encoding='utf-8',errors='replace')
-    p=argparse.ArgumentParser(description='CNG Clip Dienst – neue Twitch-Clips über Lumia')
+    p=argparse.ArgumentParser(description='Clip2Short – neue Twitch-Clips über Lumia')
     p.add_argument('action',choices=['run','setup','dashboard','check','stop'],nargs='?',default='run')
     p.add_argument('--channel',help='Twitch-Kanal beim Einrichten, ohne URL')
     a=p.parse_args(); root=data_dir()
@@ -23,9 +23,9 @@ def main():
         if sys.stderr is None:sys.stderr=background_log
     if a.action=='setup':
         cfg=load_config(root)
-        supplied_channel=a.channel or os.environ.get('CNG_TWITCH_CHANNEL') or input('Dein Twitch-Kanal (ohne URL): ')
+        supplied_channel=a.channel or os.environ.get('CLIP2SHORT_TWITCH_CHANNEL') or input('Dein Twitch-Kanal (ohne URL): ')
         cfg['channel']=channel_name(supplied_channel)
-        token=os.environ.get('CNG_LUMIA_TOKEN') or getpass.getpass('Lokaler Lumia-API-Token: ')
+        token=os.environ.get('CLIP2SHORT_LUMIA_TOKEN') or getpass.getpass('Lokaler Lumia-API-Token: ')
         if not token.strip():raise ValueError('Der lokale Lumia-API-Token darf nicht leer sein.')
         save_secrets(token,root); save_config(cfg,root)
         from pathlib import Path

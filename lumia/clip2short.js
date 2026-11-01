@@ -21,10 +21,10 @@ async function() {
     try {
         const origin = await getVariable('originType');
         if (origin !== 'api') { done(); return; }
-        stage = String(await getVariable('cng_stage') || '');
-        id = String(await getVariable('cng_clip_id') || '');
-        base = String(await getVariable('cng_service_url') || '');
-        key = String(await getVariable('cng_bridge_key') || '');
+        stage = String(await getVariable('clip2short_stage') || '');
+        id = String(await getVariable('clip2short_clip_id') || '');
+        base = String(await getVariable('clip2short_service_url') || '');
+        key = String(await getVariable('clip2short_bridge_key') || '');
         if (base !== 'http://127.0.0.1:39242' || key.length < 24) throw new Error('Dienstverbindung fehlt.');
         if (stage === 'check') {
             const token = await getToken('twitch');
@@ -35,11 +35,11 @@ async function() {
             if (!response.ok) throw new Error('Twitch-Anmeldung in Lumia prüfen.');
             const auth = await response.json();
             const scope = (auth.scopes || []).some(function(s) { return s === 'channel:manage:clips' || s === 'editor:manage:clips'; });
-            const probe = await resolveVariables('{' + '{ai_prompt=Antworte ausschließlich mit CNG_OK.}' + '}');
+            const probe = await resolveVariables('{' + '{ai_prompt=Antworte ausschließlich mit CLIP2SHORT_OK.}' + '}');
             await request('/api/diagnostic', {
-                message: 'Lumia-Befehl erreichbar. Twitch: ' + String(auth.login) + '. KI: ' + (String(probe).trim() === 'CNG_OK') + '. Download erfolgt separat für den neuen öffentlichen Clip.',
+                message: 'Lumia-Befehl erreichbar. Twitch: ' + String(auth.login) + '. KI: ' + (String(probe).trim() === 'CLIP2SHORT_OK') + '. Download erfolgt separat für den neuen öffentlichen Clip.',
                 twitch_login: auth.login, clip_download_scope: scope,
-                ai_ok: String(probe).trim() === 'CNG_OK', tiktok_username: String(await getVariable('tiktok_username') || '')
+                ai_ok: String(probe).trim() === 'CLIP2SHORT_OK', tiktok_username: String(await getVariable('tiktok_username') || '')
             });
         } else if (stage === 'resolve') {
             if (!/^[A-Za-z0-9_-]{8,200}$/.test(id)) throw new Error('Clip-ID fehlt.');
@@ -66,11 +66,11 @@ async function() {
             if (!clip) throw new Error('Neuer Clip ist bei Twitch noch nicht abrufbar.');
             // Validate creation time BEFORE requesting or fetching media.
             const eligibility = await request('/api/eligible', { clip: clip });
-            if (!eligibility.eligible) { log('CNG: Clip ausgeschlossen: ' + eligibility.reason); done(); return; }
+            if (!eligibility.eligible) { log('Clip2Short: Clip ausgeschlossen: ' + eligibility.reason); done(); return; }
             const games = await helix('games?id=' + encodeURIComponent(clip.game_id));
             const category = games.data && games.data[0] && games.data[0].name;
             if (!category) throw new Error('Kategorie dieses Clips konnte nicht ermittelt werden.');
-            let streamTitle = String(await getVariable('cng_stream_title') || '');
+            let streamTitle = String(await getVariable('clip2short_stream_title') || '');
             if (clip.video_id) {
                 try {
                     const videos = await helix('videos?id=' + encodeURIComponent(clip.video_id));
@@ -81,7 +81,7 @@ async function() {
                 clip: clip, category: category, stream_title: streamTitle
             });
         } else if (stage === 'editorial') {
-            analysisKind = String(await getVariable('cng_analysis_kind') || 'main');
+            analysisKind = String(await getVariable('clip2short_analysis_kind') || 'main');
             const job = await request('/api/jobs/' + encodeURIComponent(id), undefined, 'GET');
             const prefix = analysisKind === 'preview' ? 'preview_' : '';
             const context = job[prefix + 'editorial_context'];
@@ -123,13 +123,13 @@ async function() {
             const afterLink = String(await getVariable('tiktok_last_video_link') || '');
             // Awaited action completion is not proof of TikTok's processing result.
             await request('/api/result', { id: id, result: result === undefined ? null : result, url: afterLink !== beforeLink ? afterLink : '' });
-            log('CNG: TikTok-Aufruf für ' + id + ' durch Lumia abgeschlossen (' + claim.privacy + ').');
+            log('Clip2Short: TikTok-Aufruf für ' + id + ' durch Lumia abgeschlossen (' + claim.privacy + ').');
         } else {
-            throw new Error('Unbekannter CNG-Dienstschritt.');
+            throw new Error('Unbekannter Clip2Short-Dienstschritt.');
         }
     } catch (error) {
         const message = String(error && error.message || error).slice(0, 500);
-        log('CNG Clip Dienst: ' + message);
+        log('Clip2Short: ' + message);
         if (base && key) {
             try {
                 await request(claimed ? '/api/result' : '/api/diagnostic', claimed ? { id: id, error: message } : { message: message, stage: stage, id: id, kind: analysisKind });

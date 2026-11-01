@@ -1,3 +1,3 @@
-from cng_clip_service.__main__ import main
+from clip2short.__main__ import main
 if __name__ == '__main__':
     main()

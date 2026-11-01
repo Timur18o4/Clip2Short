@@ -2,7 +2,7 @@
 
 ## Prozesse
 
-Die Windows-Aufgabenplanung startet `.venv\Scripts\pythonw.exe -m cng_clip_service run` mit dem Programmordner als Arbeitsverzeichnis. Der Dienst läuft in der angemeldeten Benutzersitzung. Lumia bleibt eine separate Anwendung.
+Die Windows-Aufgabenplanung startet `.venv\Scripts\pythonw.exe -m clip2short run` mit dem Programmordner als Arbeitsverzeichnis. Der Dienst läuft in der angemeldeten Benutzersitzung. Lumia bleibt eine separate Anwendung.
 
 Der Dienst enthält einen Ereignisempfänger, eine lokale Arbeitswarteschlange, eine Verarbeitungsroutine und die HTTP-Oberfläche. Pro Datenordner verhindert eine Dateisperre zwei Dienstinstanzen. Der Windows-Auftrag ignoriert zusätzliche Starts einer bereits laufenden Instanz.
 
@@ -12,7 +12,7 @@ Der Dienst enthält einen Ereignisempfänger, eine lokale Arbeitswarteschlange, 
 |---|---|---|
 | Dienst → Lumia | WebSocket `ws://127.0.0.1:39231/api` | Nur Alert-Ereignisse abonnieren und `twitch-clip` auswerten |
 | Dienst → Lumia | `POST /api/mcp`, Tool `get_recent_events` | Einmal beim Verbinden gepufferte Twitch-Clip-Ereignisse nachholen |
-| Dienst → Lumia | `POST /api/send`, Typ `chat-command`, Wert `cng-clip-dienst` | Mit `cng_stage` die Stufen `resolve`, `editorial` und `publish` aufrufen |
+| Dienst → Lumia | `POST /api/send`, Typ `chat-command`, Wert `clip2short` | Mit `clip2short_stage` die Stufen `resolve`, `editorial` und `publish` aufrufen |
 | Lumia → Twitch | `GET /helix/clips`, `/helix/games`, gegebenenfalls `/helix/videos` | Metadaten genau der gemeldeten ID und passende Kategorie lesen |
 | Lumia → Dienst | `POST /api/eligible`, `POST /api/resolved` | Datum/Kanal prüfen und den neuen Clip in die Warteschlange übernehmen |
 | Dienst → Twitch | yt-dlp für `https://clips.twitch.tv/<ID>`, danach HTTPS-Mediendownload | Horizontale Datei ermitteln und laden; ID, Kanal und Datum erneut vergleichen |
@@ -32,7 +32,7 @@ Alle Dienst-Endpunkte liegen unter `http://127.0.0.1:39242`. Der lokale Dienstsc
 4. Bis zu acht Bildzeitpunkte an beiden Bildrändern mit RapidOCR prüfen. Nur Nachrichten unter erkannten Plattformköpfen mit wiederholter hoher OCR-Bewertung werden als Kandidaten zugelassen.
 5. Lumia wählt den eigenen Titel und optional eine vorhandene Kandidaten-ID. Ein Zitat wird aus dem gespeicherten OCR-Text eingesetzt, nicht frei aus der KI-Antwort übernommen. Ein zusammenhängender Untertitelausschnitt muss den Antwortbezug zeitlich stützen.
 6. OpenCV-Gesichterkennung und das lokale Modell `openai/clip-vit-base-patch32` prüfen Kamera-/Gameplay-/Reaction-Stichproben. Referenzprofile werden in Pixelkoordinaten der Quelle umgerechnet.
-7. FFmpeg rendert jede erkannte Layoutphase mit dem gemeinsamen CNG-Design. Phasen werden zu einer MP4 zusammengesetzt.
+7. FFmpeg rendert jede erkannte Layoutphase mit dem gemeinsamen Clip2Short-Design. Phasen werden zu einer MP4 zusammengesetzt.
 8. Dateiprüfsumme und Sichtbarkeit speichern; erst danach die Lumia-Veröffentlichung auslösen.
 
 Rohbilder und Audioanalyse bleiben lokal. Titel- und Beschreibungs-KI erhalten Textkontext über Lumia. Der eigentliche TikTok-Upload verwendet die fertige lokale MP4.
@@ -49,13 +49,13 @@ Nach einem Neustart werden unterbrochene Download-/Analyse-/Renderaufträge wied
 
 | Datei | Verantwortung |
 |---|---|
-| `cng_clip_service/service.py` | Ablauf, Warteschlange, Wiederaufnahme, Rendern und Upload-Freigabe |
-| `cng_clip_service/lumia.py` | Lokale REST-/WebSocket-/MCP-Anbindung |
-| `lumia/cng-clip-dienst.js` | In Lumia auszuführender Code für Twitch, KI und TikTok |
-| `cng_clip_service/downloads.py` | Öffentliche Twitch-Datei exakt der Clip-ID auflösen |
-| `cng_clip_service/editorial.py` | OCR-Kandidaten, Titelprompt und belegte Chat-Auswahl |
-| `cng_clip_service/layout.py` | Gesichter, Bildklassifikation und Szenenprofile |
+| `clip2short/service.py` | Ablauf, Warteschlange, Wiederaufnahme, Rendern und Upload-Freigabe |
+| `clip2short/lumia.py` | Lokale REST-/WebSocket-/MCP-Anbindung |
+| `lumia/clip2short.js` | In Lumia auszuführender Code für Twitch, KI und TikTok |
+| `clip2short/downloads.py` | Öffentliche Twitch-Datei exakt der Clip-ID auflösen |
+| `clip2short/editorial.py` | OCR-Kandidaten, Titelprompt und belegte Chat-Auswahl |
+| `clip2short/layout.py` | Gesichter, Bildklassifikation und Szenenprofile |
 | `clip_engine/transcribe.py` | Audioextraktion und Untertitelcache |
 | `clip_engine/artwork.py`, `clip_engine/render.py` | Gestaltung, Untertitel und FFmpeg-Export |
-| `cng_clip_service/server.py` | Lokale Statusoberfläche und geschützte Rückmeldungen |
+| `clip2short/server.py` | Lokale Statusoberfläche und geschützte Rückmeldungen |
 | `Verwalten.ps1` | Einrichtung, manueller Start/Stopp und Windows-Auftrag |

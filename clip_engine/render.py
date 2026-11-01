@@ -1,4 +1,4 @@
-"""Read-only source trimming and CNG portrait rendering with FFmpeg."""
+"""Read-only source trimming and Clip2Short portrait rendering with FFmpeg."""
 from __future__ import annotations
 
 import io
@@ -114,7 +114,7 @@ def _check_ffmpeg(binary, cleanup=False):
     if missing:
         raise RuntimeError("Die gefundene FFmpeg-Version ist unvollständig (Filter fehlen: "
                            + ", ".join(missing) + "). Vollständiges FFmpeg von Gyan installieren "
-                           "oder CNG_FFMPEG auf die vollständige ffmpeg.exe setzen.")
+                           "oder CLIP2SHORT_FFMPEG auf die vollständige ffmpeg.exe setzen.")
 
 
 def _image_input(path: Path, fps: float) -> list[str]:
@@ -270,7 +270,7 @@ def preview_project(project: dict, source_time: float, output_path=None) -> Imag
     binary = find_binary("ffmpeg")
     _check_ffmpeg(binary, bool(cleanup))
     active = _caption_at(project.get("captions", []), position)
-    with tempfile.TemporaryDirectory(prefix="cng-preview-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="clip2short-preview-") as temporary:
         directory = Path(temporary)
         background, foreground = _save_artwork(directory, project, layout)
         caption_path = directory / "caption.png"
@@ -292,7 +292,7 @@ def preview_project(project: dict, source_time: float, output_path=None) -> Imag
     if output_path is not None:
         destination = Path(output_path).expanduser().resolve()
         destination.parent.mkdir(parents=True, exist_ok=True)
-        with tempfile.NamedTemporaryFile(prefix=".cng-preview-", suffix=destination.suffix or ".png",
+        with tempfile.NamedTemporaryFile(prefix=".clip2short-preview-", suffix=destination.suffix or ".png",
                                          dir=destination.parent, delete=False) as handle:
             staged = Path(handle.name)
         try:
@@ -329,7 +329,7 @@ def render_project(project: dict, progress=None, cancel=None) -> dict:
     _check_cancel(cancel)
     output.parent.mkdir(parents=True, exist_ok=True)
     # Stage on the destination filesystem so the final replacement is atomic.
-    with tempfile.TemporaryDirectory(prefix=".cng-render-", dir=output.parent) as temporary:
+    with tempfile.TemporaryDirectory(prefix=".clip2short-render-", dir=output.parent) as temporary:
         directory = Path(temporary)
         staged_video, staged_cover = directory / "video.mp4", directory / "cover.jpg"
         background, foreground = _save_artwork(directory, project, layout)
@@ -369,7 +369,7 @@ def render_project(project: dict, progress=None, cancel=None) -> dict:
                         "-colorspace", "bt709", "-color_range", "tv", "-c:a", "aac", "-b:a", "192k",
                         "-ar", "48000", "-ac", "2", "-map_metadata", "-1", "-movflags", "+faststart",
                         str(staged_video)])
-        _notify(progress, "CNG-Layout und Untertitel sind vorbereitet …", .03)
+        _notify(progress, "Clip2Short-Layout und Untertitel sind vorbereitet …", .03)
         _run_encoder(command, duration, progress, cancel)
         _notify(progress, "Export und Titelbild werden geprüft …", .97)
         result_info = probe_media(staged_video)

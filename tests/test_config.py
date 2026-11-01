@@ -1,5 +1,5 @@
 import unittest
-from cng_clip_service.config import channel_name
+from clip2short.config import channel_name
 
 
 class ChannelTests(unittest.TestCase):
