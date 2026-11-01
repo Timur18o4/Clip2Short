@@ -1,8 +1,8 @@
-# Lumia Clip Dienst
+# Clip2Short
 
 Windows-Hintergrunddienst für **neue Twitch-Clips → Hochkantvideo → Untertitel → KI-Titel → TikTok**, mit Lumia Stream als Ereignisquelle und Upload-Anbindung.
 
-[![Tests](https://github.com/Timur18o4/Lumia-Clip-Dienst/actions/workflows/tests.yml/badge.svg)](https://github.com/Timur18o4/Lumia-Clip-Dienst/actions/workflows/tests.yml)
+[![Tests](https://github.com/Timur18o4/Clip2Short/actions/workflows/tests.yml/badge.svg)](https://github.com/Timur18o4/Clip2Short/actions/workflows/tests.yml)
 
 **v0.1.0 · erste öffentliche Testversion.** Die Bildaufteilung und der Chatbezug werden automatisch eingeschätzt. Bei unsicherer Kameraerkennung hält der Dienst den Clip zur Prüfung an. Die Referenzprofile müssen zu den eigenen OBS-Szenen passen.
 
@@ -55,7 +55,7 @@ Die lokale Analyse verwendet standardmäßig die CPU. Python, FFmpeg, Lumia, Mod
 
 ## Einrichtung
 
-1. Das [Windows-Programm-ZIP aus dem Release](https://github.com/Timur18o4/Lumia-Clip-Dienst/releases) entpacken oder das Repository klonen. Einen dauerhaften Ordner wählen, beispielsweise `E:\Scripte\CNG_Clip_Dienst`.
+1. Das [Windows-Programm-ZIP aus dem Release](https://github.com/Timur18o4/Clip2Short/releases) entpacken oder das Repository klonen. Einen dauerhaften Ordner wählen, beispielsweise `E:\Scripte\CNG_Clip_Dienst`.
 2. Python und vollständiges FFmpeg installieren. Lumia starten, die Konten verbinden und die lokale API aktivieren.
 3. `EINRICHTEN.cmd` ausführen. Das erstellt die Python-Umgebung, installiert die Abhängigkeiten und fragt **den eigenen Twitch-Kanal sowie den lokalen Lumia-API-Token** ab. Der Token wird verdeckt eingegeben und mit Windows-DPAPI gespeichert.
 4. In Lumia einen Chat-Befehl **`cng-clip-dienst`** anlegen:
