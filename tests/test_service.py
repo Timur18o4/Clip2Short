@@ -21,7 +21,9 @@ class ServiceTests(unittest.TestCase):
         self.tmp=tempfile.TemporaryDirectory(dir=test_root); self.addCleanup(self.tmp.cleanup)
         self.service=Service(self.tmp.name,{'lumia_token':'test-only','bridge_key':'x'*40})
         self.addCleanup(self.service.close)
-        self.clip={'id':'FutureClip123','created_at':now(),'broadcaster_name':'timur18o4','duration':30,'title':'Ein Test'}
+        # Windows clocks can report the same tick for activation and the next call.
+        created=(datetime.fromisoformat(self.service.store.armed_at)+timedelta(seconds=1)).isoformat()
+        self.clip={'id':'FutureClip123','created_at':created,'broadcaster_name':'timur18o4','duration':30,'title':'Ein Test'}
 
     def ready(self,privacy='SELF_ONLY'):
         path=Path(self.tmp.name)/'renders'/'test.mp4'; path.write_bytes(b'rendered-video')
@@ -69,6 +71,7 @@ class ServiceTests(unittest.TestCase):
         threads=[threading.Thread(target=call) for _ in range(4)]
         for t in threads:t.start()
         for t in threads:t.join()
+        self.assertEqual(len(outcomes),4)
         self.assertEqual(outcomes.count(True),1)
 
     def test_public_setting_does_not_promote_existing_private_job(self):
