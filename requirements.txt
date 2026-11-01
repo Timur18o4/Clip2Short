@@ -1,0 +1,10 @@
+Pillow==12.3.0
+faster-whisper==1.2.1
+requests==2.34.2
+yt-dlp==2026.10.26
+websocket-client==1.9.0
+opencv-python-headless==4.14.0.94
+transformers==4.57.6
+torch==2.11.0
+rapidocr==3.10.0
+onnxruntime==1.26.0

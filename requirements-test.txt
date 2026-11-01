@@ -1,0 +1,4 @@
+# Unit/contract tests do not download models or access real platform accounts.
+Pillow==12.3.0
+requests==2.34.2
+yt-dlp==2026.10.26

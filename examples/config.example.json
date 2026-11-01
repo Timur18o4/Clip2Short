@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "channel": "mein_twitch_kanal",
+  "port": 39242,
+  "lumia_url": "http://127.0.0.1:39231/api",
+  "command": "cng-clip-dienst",
+  "privacy": "SELF_ONLY",
+  "enabled": true,
+  "model": "medium",
+  "fps": 60,
+  "auto_upload": true,
+  "require_face": true,
+  "vision": true,
+  "brand": "CNG-PLATTFORM.COM",
+  "profiles": {
+    "camera": {
+      "main": {
+        "x": 0.234375,
+        "y": 0,
+        "width": 0.5489583,
+        "height": 1
+      }
+    },
+    "gameplay": {
+      "main": {
+        "x": 0.234375,
+        "y": 0,
+        "width": 0.5270833,
+        "height": 1
+      },
+      "facecam": {
+        "x": 0.7958333,
+        "y": 0.3240741,
+        "width": 0.1807292,
+        "height": 0.3777778
+      }
+    },
+    "reaction": {
+      "main": {
+        "x": 0,
+        "y": 0,
+        "width": 1,
+        "height": 1
+      },
+      "facecam": {
+        "x": 0.7958333,
+        "y": 0.3240741,
+        "width": 0.1807292,
+        "height": 0.3777778
+      }
+    }
+  }
+}

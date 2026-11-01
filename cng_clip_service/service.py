@@ -1,0 +1,341 @@
+import hashlib
+import json
+import os
+import queue
+import re
+import secrets
+import subprocess
+import tempfile
+import threading
+import time
+from pathlib import Path
+from urllib.parse import urlparse
+import requests
+
+from .captions import prompt,validate_caption
+from .config import load_config,load_secrets,data_dir
+from .store import Store,now,instant
+from .lumia import Lumia
+from .layout import detect_scenes,NeedsLayoutReview
+
+
+def clip_id(event):
+    data=event.get('data',{}); extra=data.get('extraSettings',{})
+    candidates=[extra.get('clip_id'),extra.get('id'),extra.get('clipId'),extra.get('clip_url'),extra.get('url'),data.get('dynamic',{}).get('value')]
+    for value in candidates:
+        value=str(value or '')
+        if value.startswith('https://'):
+            p=urlparse(value)
+            if p.hostname=='clips.twitch.tv': value=p.path.strip('/').split('/')[0]
+            elif p.hostname in ('twitch.tv','www.twitch.tv') and '/clip/' in p.path: value=p.path.split('/clip/',1)[1].split('/')[0]
+            else: continue
+        if re.fullmatch('[A-Za-z0-9_-]{8,200}',value): return value
+    return None
+
+
+def allowed_media(url):
+    p=urlparse(url); host=(p.hostname or '').lower()
+    return p.scheme=='https' and not p.username and not p.password and (host=='d1ndex63qxojbr.cloudfront.net' or any(host==s or host.endswith('.'+s) for s in ('twitch.tv','twitchcdn.net','jtvnw.net')))
+
+
+def download(url,target,cancel):
+    session=requests.Session(); session.trust_env=False
+    for _ in range(4):
+        if not allowed_media(url): raise ValueError('Ungültige Twitch-Medienadresse.')
+        try: response=session.get(url,stream=True,allow_redirects=False,timeout=(10,30))
+        except requests.RequestException: raise RuntimeError('Clip-Download ist momentan nicht erreichbar.') from None
+        if response.is_redirect:
+            from urllib.parse import urljoin
+            url=urljoin(url,response.headers['Location']); response.close(); continue
+        break
+    else: raise RuntimeError('Zu viele Weiterleitungen beim Clip-Download.')
+    if response.status_code!=200: response.close(); raise RuntimeError('Twitch-Download noch nicht verfügbar oder abgelaufen.')
+    target=Path(target); tmp=target.with_suffix('.part'); count=0
+    try:
+        with tmp.open('wb') as out:
+            for chunk in response.iter_content(1024*1024):
+                if cancel.is_set(): raise RuntimeError('Download abgebrochen.')
+                count+=len(chunk)
+                if count>512*1024*1024: raise RuntimeError('Clip überschreitet die Downloadgrenze von 512 MB.')
+                out.write(chunk)
+        if not count: raise RuntimeError('Leere Clipdatei.')
+        tmp.replace(target)
+    except requests.RequestException: raise RuntimeError('Clip-Download wurde unterbrochen.') from None
+    finally: response.close(); tmp.unlink(missing_ok=True)
+
+
+class Service:
+    def __init__(self,root=None,credentials=None):
+        self.root=Path(root or data_dir()); self.cfg=load_config(self.root)
+        self.credentials=credentials or load_secrets(self.root)
+        self.instance=None
+        try:
+            self.instance=(self.root/'service.lock').open('a+b'); self.instance.seek(0)
+            if not self.instance.read(1): self.instance.write(b'0'); self.instance.flush()
+            self.instance.seek(0)
+            if os.name=='nt':
+                import msvcrt
+                msvcrt.locking(self.instance.fileno(),msvcrt.LK_NBLCK,1)
+            else:
+                import fcntl
+                fcntl.flock(self.instance.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
+        except OSError:
+            if self.instance: self.instance.close()
+            raise RuntimeError('Der CNG Clip Dienst läuft bereits oder die Dienstsperre ist nicht zugänglich.') from None
+        self.store=Store(self.root); self.lumia=Lumia(self.cfg,self.credentials)
+        self.stop=threading.Event(); self.work=queue.Queue(); self.threads=[]
+        self.status='Startet …'; self.resolving={}; self.guard=threading.RLock()
+        for job in self.store.list(10000):
+            if job['state']=='resolving': self.resolving[job['id']]=0
+        for name in ('clips','renders','reports'): (self.root/name).mkdir(exist_ok=True)
+
+    def close(self):
+        self.stop.set()
+        for t in self.threads: t.join(timeout=4)
+        self.store.close(); self.instance.close()
+
+    def log(self,message):
+        self.status=message
+        # Messages contain no access tokens, signed download URLs or raw events.
+        with (self.root/'service.log').open('a',encoding='utf-8') as f: f.write(now()+' '+message+'\n')
+
+    def start(self):
+        for target in (self.listen,self.worker,self.supervise):
+            t=threading.Thread(target=target,daemon=True); t.start(); self.threads.append(t)
+        for job in self.store.list(10000):
+            if job['state']=='queued': self.work.put(job['id'])
+
+    def resolve(self,ident):
+        job=self.store.get(ident)
+        if not job or job['state']!='resolving': return
+        attempts=job.get('resolve_attempts',0)
+        if attempts>=5:
+            self.store.update_if(ident,'resolving','error',error=job.get('error') or 'Metadaten konnten nach fünf Versuchen nicht geladen werden.')
+            with self.guard: self.resolving.pop(ident,None)
+            return
+        if not self.store.update_if(ident,'resolving',resolve_attempts=attempts+1,next_resolve=time.time()+max(45,30*2**attempts)): return
+        try:
+            title=job.get('stream_title') or self.lumia.variable('twitch_channel_title')
+            if not self.store.update_if(ident,'resolving',stream_title=str(title)): return
+            self.lumia.command('resolve',ident,cng_stream_title=str(title),cng_armed_at=self.store.armed_at)
+            self.log('Neuer Twitch-Clip wird durch Lumia geprüft: '+ident)
+        except Exception as exc: self.store.update_if(ident,'resolving',error=str(exc)); self.log(str(exc))
+
+    def dispatch(self,ident):
+        job=self.store.get(ident)
+        if not job or job['state']!='ready' or not self.cfg.get('enabled') or not self.cfg.get('auto_upload'): return
+        attempts=job.get('dispatch_attempts',0)
+        if attempts>=3: return
+        # Repeating this command cannot publish twice: /api/claim is atomic and single-use.
+        if not self.store.update_if(ident,'ready',dispatch_attempts=attempts+1,next_dispatch=time.time()+120*2**attempts): return
+        try: self.lumia.command('publish',ident)
+        except Exception: self.log('Lumia-Aufruf unbestätigt. Der Upload bleibt durch die einmalige Freigabe geschützt.')
+
+    def supervise(self):
+        while not self.stop.wait(3):
+            if not self.cfg.get('enabled'): continue
+            for job in self.store.list(10000):
+                if self.stop.is_set(): return
+                try:
+                    if job['state']=='resolving' and job.get('next_resolve',0)<=time.time(): self.resolve(job['id'])
+                    elif job['state']=='ready' and job.get('next_dispatch',0)<=time.time(): self.dispatch(job['id'])
+                except Exception: self.log('Ein Warteschritt wurde unterbrochen; erneute Prüfung folgt.')
+
+    def retry(self,ident):
+        job=self.store.get(ident)
+        if not job or job['state'] not in ('error','review','ready'): raise ValueError('Dieser Zustand kann nicht erneut gestartet werden.')
+        if job['state']=='ready':
+            self.store.update_if(ident,'ready',dispatch_attempts=0,next_dispatch=0,error='');return
+        with self.guard: self.resolving[ident]=0
+        self.store.put(ident,'resolving',resolve_attempts=0,next_resolve=0,error='')
+
+    def diagnostic(self,payload):
+        (self.root/'diagnostic.json').write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding='utf-8')
+        ident=payload.get('id');job=self.store.get(ident) if ident else None
+        if job and payload.get('stage')=='resolve' and job['state']=='resolving':
+            self.store.update_if(ident,'resolving',error=str(payload.get('message',''))[:500])
+        elif job and payload.get('stage')=='publish' and job['state']=='ready':
+            self.store.update_if(ident,'ready',error=str(payload.get('message',''))[:500])
+        elif job and payload.get('stage')=='editorial':
+            prefix='preview_' if payload.get('kind')=='preview' else ''
+            if not job.get(prefix+'editorial'):self.store.update_if(ident,job['state'],**{prefix+'editorial_error':str(payload.get('message',''))[:500]})
+        self.log('Lumia-Diagnose: '+str(payload.get('message',''))[:300])
+
+    def prepare_editorial(self,ident,source,metadata,pages,preview=False):
+        from .editorial import chat_candidates
+        prefix='preview_' if preview else ''
+        try: candidates=chat_candidates(source,metadata,self.stop,lambda m,f:self.log(m))
+        except Exception:
+            if self.stop.is_set():raise
+            candidates=[];self.log('Chat war nicht sicher lesbar. Der Clip erhält kein Chat-Zitat.')
+        context={'key':secrets.token_urlsafe(20),'pages':pages,'candidates':candidates}
+        job=self.store.get(ident)
+        self.store.update_if(ident,job['state'],**{prefix+'editorial_context':context,prefix+'editorial':None,prefix+'editorial_error':''})
+        self.log('Lumia erstellt einen eigenen Titel und prüft den Chatbezug …')
+        self.lumia.command('editorial',ident,cng_analysis_kind='preview' if preview else 'main')
+        deadline=time.monotonic()+150
+        while time.monotonic()<deadline:
+            if self.stop.wait(.5):raise RuntimeError('Abgebrochen.')
+            current=self.store.get(ident)
+            if current.get(prefix+'editorial_error'):raise RuntimeError(current[prefix+'editorial_error'])
+            if current.get(prefix+'editorial'):return current[prefix+'editorial']
+        raise RuntimeError('Lumia hat den eigenen Titel nicht rechtzeitig geliefert. Kein Upload mit einem Platzhalter-Titel.')
+
+    def accept_editorial(self,payload):
+        with self.guard:return self._accept_editorial(payload)
+
+    def _accept_editorial(self,payload):
+        from .editorial import validate
+        ident=payload['id'];job=self.store.get(ident);preview=payload.get('kind')=='preview';prefix='preview_' if preview else ''
+        if not job or (not preview and job['state']!='analyzing') or (preview and job['state'] not in ('submitted','uploaded')):
+            raise ValueError('Keine laufende Titelprüfung.')
+        context=job.get(prefix+'editorial_context',{})
+        if payload.get('analysis_key')!=context.get('key'):raise ValueError('Veraltete Titelantwort.')
+        if job.get(prefix+'editorial'):return {'ok':True}
+        try:result=validate(payload['result'],context)
+        except Exception:
+            self.store.update_if(ident,job['state'],**{prefix+'editorial_last_response':str(payload['result'])[:6000]})
+            raise
+        if not self.store.update_if(ident,job['state'],**{prefix+'editorial':result}):raise ValueError('Clipzustand hat sich geändert.')
+        return {'ok':True}
+
+    def preview(self,ident):
+        with self.guard:self._preview(ident)
+
+    def _preview(self,ident):
+        from clip_engine.media import probe_media
+        job=self.store.get(ident)
+        if not job or job['state'] not in ('submitted','uploaded') or job.get('preview_rendering'):raise ValueError('Für diesen Clip kann gerade keine Vorschau erstellt werden.')
+        self.store.update_fields(ident,preview_rendering=True,preview_error='',preview_output='')
+        def run():
+            try:
+                source=self.root/'clips'/f'{ident}.mp4';metadata=probe_media(source)
+                report=json.loads((self.root/'reports'/f'{ident}.json').read_text(encoding='utf8'))
+                pages=report['captions'];editorial=self.prepare_editorial(ident,source,metadata,pages,preview=True)
+                output=self.root/'renders'/f'{ident}-preview.mp4'
+                base={'source':str(source),'output':str(output),'brand':self.cfg['brand'],'channel':self.cfg['channel'].upper(),
+                      'accent':'#ffd13f','fps':self.cfg['fps'],'normalize_audio':True,'captions':pages,
+                      'title':editorial['title'],'chat_quote':editorial['chat_quote'],'label':job['category'].upper()}
+                self.render_output(base,job['scenes'],metadata,output)
+                self.store.update_fields(ident,preview_output=str(output),preview_rendering=False)
+                self.log('KI-Vorschau fertig. Der vorhandene TikTok-Beitrag wurde nicht erneut hochgeladen.')
+            except Exception as exc:
+                self.store.update_fields(ident,preview_rendering=False,preview_error=str(exc));self.log('KI-Vorschau: '+str(exc))
+        t=threading.Thread(target=run,daemon=True);self.threads.append(t);t.start()
+
+    def listen(self): self.lumia.events(self.stop,self.on_event,self.log)
+
+    def on_event(self,event):
+        if not self.cfg.get('enabled'): return
+        data=event.get('data',{}); extra=data.get('extraSettings',{})
+        if data.get('replay') or data.get('test') or extra.get('isTest'): return
+        try:
+            stamp=extra.get('timestamp')
+            if stamp is None or instant(stamp)<instant(self.store.armed_at): return
+        except (ValueError,TypeError): return
+        ident=clip_id(event)
+        if not ident:
+            self.log('Neues Clip-Ereignis ohne verwertbare Clip-ID. Keine alten Clips werden ersatzweise geladen.'); return
+        with self.guard:
+            if self.store.get(ident) or ident in self.resolving: return
+            self.resolving[ident]=time.monotonic()
+            self.store.put(ident,'resolving',clip={'id':ident,'title':'Neuer Clip · Metadaten werden geprüft'},event_at=now(),resolve_attempts=0,next_resolve=0)
+        self.resolve(ident)
+
+    def resolved(self,payload):
+        clip=payload['clip']; ident=clip['id']
+        if ident not in self.resolving: raise ValueError('Kein neues Clip-Ereignis für diese ID registriert.')
+        media=payload.get('download_url','')
+        if media and not allowed_media(media): raise ValueError('Ungültige Downloadadresse.')
+        job,reason=self.store.create(clip,self.cfg['channel'],category=payload['category'],stream_title=payload.get('stream_title',''),download_url=media)
+        with self.guard: self.resolving.pop(ident,None)
+        if job and not reason: self.work.put(ident)
+        return {'accepted':bool(job and not reason),'reason':reason}
+
+    def worker(self):
+        while not self.stop.is_set():
+            try: ident=self.work.get(timeout=.5)
+            except queue.Empty: continue
+            try: self.process(ident)
+            except NeedsLayoutReview as exc: self.store.put(ident,'review',error=str(exc)); self.log(str(exc))
+            except Exception as exc:
+                current=self.store.get(ident)
+                if current and current['state'] not in ('uploading','submitted','uploaded','uncertain','dispatching'):
+                    self.store.put(ident,'error',error=str(exc))
+                self.log('Clip-Verarbeitung gestoppt: '+str(exc))
+            finally: self.work.task_done()
+
+    def process(self,ident):
+        from clip_engine.media import probe_media,find_binary,_creation_flags
+        from clip_engine.render import render_project
+        from clip_engine.transcribe import transcribe_project
+        job=self.store.get(ident)
+        if not job or job['state']!='queued': return
+        ok,reason=self.store.eligible(job['clip'],self.cfg['channel'])
+        if not ok: self.store.put(ident,'ignored',error=reason); return
+        source=self.root/'clips'/f'{ident}.mp4'; output=self.root/'renders'/f'{ident}.mp4'
+        self.store.put(ident,'downloading'); self.log('Neuer Clip wird geladen: '+ident)
+        if not source.is_file():
+            from .downloads import public_media
+            for attempt in range(3):
+                try:
+                    download(job.get('download_url') or public_media(job['clip']),source,self.stop);break
+                except RuntimeError:
+                    if attempt==2 or self.stop.wait(5*(attempt+1)): raise
+        metadata=probe_media(source)
+        if metadata['duration']>180: raise ValueError('Clip ist länger als 180 Sekunden.')
+        base={'source':str(source),'output':str(output),'segments':[{'start':0,'end':metadata['duration']}],
+              'transcription_model':self.cfg['model'],'brand':self.cfg['brand'],'channel':self.cfg['channel'].upper(),
+              'accent':'#ffd13f','fps':self.cfg['fps'],'normalize_audio':True,'cleanup_regions':[],
+              'title':str(job['clip'].get('title',''))[:75] or job['category'],'label':job['category'].upper()}
+        self.store.put(ident,'transcribing'); pages=transcribe_project(base,lambda m,f:self.log(m),self.stop)
+        base['captions']=pages; transcript=' '.join(p['text'] for p in pages)
+        self.store.put(ident,'analyzing',transcript=transcript)
+        editorial=self.prepare_editorial(ident,source,metadata,pages)
+        base.update(title=editorial['title'],chat_quote=editorial['chat_quote'])
+        self.store.put(ident,'rendering')
+        scenes,evidence=detect_scenes(source,metadata,job['category'],self.cfg,lambda m,f:self.log(m),self.stop)
+        self.render_output(base,scenes,metadata,output)
+        digest=hashlib.sha256(output.read_bytes()).hexdigest()
+        job=self.store.put(ident,'ready',transcript=transcript,output=str(output),sha256=digest,scenes=scenes,privacy=self.cfg['privacy'])
+        (self.root/'reports'/f'{ident}.json').write_text(json.dumps({'clip':job['clip'],'category':job['category'],'scenes':scenes,'evidence':evidence,'captions':pages,'editorial':editorial},ensure_ascii=False,indent=2),encoding='utf-8')
+        self.dispatch(ident)
+        self.log('Hochkantclip fertig: '+ident)
+
+    def render_output(self,base,scenes,metadata,output):
+        from clip_engine.render import render_project
+        from clip_engine.media import find_binary
+        pieces=[]
+        with tempfile.TemporaryDirectory(prefix='cng-scenes-',dir=self.root) as temp:
+            for index,scene in enumerate(scenes):
+                project={**base,'mode':'just_chatting' if scene['name']=='camera' else 'gameplay',
+                         'crops':scene['crops'],'segments':[{'start':scene['start'],'end':scene['end']}],
+                         'output':str(Path(temp)/f'part{index}.mp4')}
+                render_project(project,lambda m,f:self.log(m),self.stop); pieces.append(Path(project['output']))
+            if len(pieces)==1: os.replace(pieces[0],output)
+            else:
+                from clip_engine.render import _run_encoder
+                manifest=Path(temp)/'list.txt'
+                manifest.write_text('\n'.join("file '"+p.name+"'" for p in pieces),encoding='utf-8')
+                staged=Path(temp)/'joined.mp4'
+                command=[find_binary('ffmpeg'),'-hide_banner','-loglevel','error','-nostdin','-y','-progress','pipe:1','-f','concat','-safe','0','-i',str(manifest),'-c','copy','-movflags','+faststart',str(staged)]
+                _run_encoder(command,metadata['duration'],lambda m,f:self.log(m),self.stop); os.replace(staged,output)
+
+    def public_job(self,ident):
+        job=self.store.get(ident)
+        if not job: raise ValueError('Clip nicht gefunden.')
+        return {k:v for k,v in job.items() if k!='download_url'}
+
+    def claim_upload(self,ident,caption):
+        job=self.store.get(ident)
+        if not job: raise ValueError('Clip nicht gefunden.')
+        if not self.cfg.get('enabled'): raise ValueError('Dienst ist angehalten.')
+        ok,reason=self.store.eligible(job['clip'],self.cfg['channel'])
+        if not ok: raise ValueError(reason)
+        clean=validate_caption(caption,job['category'])
+        path=Path(job['output'])
+        if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest()!=job['sha256']: raise ValueError('Gerenderte Datei fehlt oder wurde geändert.')
+        if job.get('privacy') not in ('SELF_ONLY','PUBLIC_TO_EVERYONE'): raise ValueError('Sichtbarkeit fehlt.')
+        if not self.store.claim(ident): return {'claimed':False,'reason':'bereits übergeben oder nicht bereit'}
+        self.store.put(ident,'uploading',caption=clean)
+        return {'claimed':True,'media':str(path),'caption':clean,'privacy':job['privacy']}
