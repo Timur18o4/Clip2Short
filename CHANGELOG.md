@@ -1,5 +1,9 @@
 # Änderungen
 
+## 1.0.1
+
+- Frei editierbarer Anzeigename in der Video-Fußzeile. Als Standard dient der eingerichtete Twitch-Name.
+
 ## 1.0.0
 
 Erste reguläre Veröffentlichung mit direkter Twitch-Erkennung, lokalem Export und TikTok-Uploadhilfe. Lumia bleibt als Quelle und für automatische TikTok-Übergaben verfügbar.

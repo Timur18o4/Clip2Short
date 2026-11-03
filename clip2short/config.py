@@ -27,6 +27,12 @@ def defaults():
                                     'facecam':{'x':.7958333,'y':.3240741,'width':.1807292,'height':.3777778}}}}
 
 
+
+def footer_name(cfg, overrides=None):
+    value = (overrides or {}).get('footer_name', cfg.get('footer_name', ''))
+    return str(value).strip()[:100] or cfg['channel'].upper()
+
+
 def channel_name(value):
     name=str(value).strip().removeprefix('@').casefold()
     if not re.fullmatch(r'[a-z0-9_]{1,25}',name):raise ValueError('Twitch-Kanal als Namen ohne URL eingeben (Buchstaben, Ziffern, Unterstrich).')

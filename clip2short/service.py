@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 import requests
 
 from .captions import prompt,validate_caption
-from .config import load_config,load_secrets,data_dir
+from .config import load_config,load_secrets,data_dir,footer_name
 from .store import Store,now,instant
 from .lumia import Lumia
 from .layout import detect_scenes,NeedsLayoutReview
@@ -332,7 +332,7 @@ class Service:
                 project = {
                     'source': str(source), 'output': str(output), 'design': design,
                     'brand': str(data.get('brand', cfg['brand']))[:100],
-                    'channel': cfg['channel'].upper(), 'accent': '#ffd13f',
+                    'channel': footer_name(cfg, data), 'accent': '#ffd13f',
                     'fps': cfg['fps'], 'normalize_audio': True,
                     'transcription_model': cfg['model'],
                     'segments': [{'start': 0, 'end': metadata['duration']}],
@@ -368,7 +368,7 @@ class Service:
                 report=json.loads((self.root/'reports'/f'{ident}.json').read_text(encoding='utf8'))
                 pages=report['captions'];editorial=self.prepare_editorial(ident,source,metadata,pages,preview=True)
                 output=self.root/'renders'/f'{ident}-preview.mp4'
-                base={'source':str(source),'output':str(output),'brand':self.cfg['brand'],'channel':self.cfg['channel'].upper(),
+                base={'source':str(source),'output':str(output),'brand':self.cfg['brand'],'channel':footer_name(self.cfg),
                       'accent':'#ffd13f','fps':self.cfg['fps'],'normalize_audio':True,'captions':pages,
                       'title':editorial['title'],'chat_quote':editorial['chat_quote'],'label':job['category'].upper()}
                 from .design import render_design
@@ -447,7 +447,7 @@ class Service:
         metadata=probe_media(source)
         if metadata['duration']>180: raise ValueError('Clip ist länger als 180 Sekunden.')
         base={'source':str(source),'output':str(output),'segments':[{'start':0,'end':metadata['duration']}],
-              'transcription_model':self.cfg['model'],'brand':self.cfg['brand'],'channel':self.cfg['channel'].upper(),
+              'transcription_model':self.cfg['model'],'brand':self.cfg['brand'],'channel':footer_name(self.cfg),
               'accent':'#ffd13f','fps':self.cfg['fps'],'normalize_audio':True,'cleanup_regions':[],
               'title':str(job['clip'].get('title',''))[:75] or job['category'],'label':job['category'].upper()}
         from .design import render_design

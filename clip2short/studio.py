@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import unquote
 from PIL import Image,ImageOps
 from .design import PRESETS,validate,rect,render_design
-from .config import save_config
+from .config import save_config, footer_name
 
 
 def state(service):
@@ -86,6 +86,8 @@ def save(service,data):
     cfg=copy.deepcopy(service.cfg)
     cfg['profiles']=profiles(data['profiles'],cfg['profiles']);cfg['design']=validate(data['design'])
     cfg['brand']=str(data.get('brand',cfg['brand'])).strip()[:100]
+    if 'footer_name' in data:
+        cfg['footer_name'] = str(data['footer_name']).strip()[:100]
     render_design(cfg,service.root) # Check referenced asset before saving anything.
     save_config(cfg,service.root);service.cfg.update(cfg)
     return {'ok':True,'message':'Bildprofile und Gestaltung gespeichert. Vorhandene Videos wurden nicht verändert.'}
@@ -103,7 +105,7 @@ def preview(service,data):
         'crops':{part:pixel_crop(r,metadata['width'],metadata['height']) for part,r in checked[mode].items()},
         'design':render_design({'design':design},service.root),'title':str(data.get('title') or 'Dein Moment. Dein Design.')[:75],
         'chat_quote':str(data.get('quote') or '')[:140],'label':{'camera':'JUST CHATTING','gameplay':'GAMEPLAY','reaction':'DESKTOP / REACTION'}[mode],
-        'brand':str(data.get('brand',service.cfg['brand']))[:100],'channel':service.cfg['channel'].upper(),
+        'brand':str(data.get('brand',service.cfg['brand']))[:100],'channel':footer_name(service.cfg, data),
         'captions':[{'start':0,'end':metadata['duration'],'text':'Hier stehen deine Untertitel.'}]}
     image=preview_project(project,float(data.get('at',0)))
     buffer=io.BytesIO();image.save(buffer,format='PNG')
