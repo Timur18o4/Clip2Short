@@ -30,6 +30,22 @@ class ServiceTests(unittest.TestCase):
         path=Path(self.tmp.name)/'renders'/'test.mp4'; path.write_bytes(b'rendered-video')
         return self.service.store.put(self.clip['id'],'ready',clip=self.clip,category='Just Chatting',transcript='Ein Missverständnis.',output=str(path),sha256=hashlib.sha256(path.read_bytes()).hexdigest(),privacy=privacy)
 
+    def test_large_camera_is_not_overridden_by_small_background_face(self):
+        detected=[{'x':.37,'y':.27,'width':.2,'height':.36},
+                  {'x':.735,'y':.72,'width':.06,'height':.107}]
+        self.assertEqual(classify(detected,'camera',.77,'Just Chatting',self.service.cfg),'camera')
+        self.assertEqual(classify(detected,'reaction',.77,'Just Chatting',self.service.cfg),'reaction')
+
+    def test_retry_reuses_valid_editorial_without_ai_or_chat_scan(self):
+        job=self.ready();source=Path(job['output']);pages=[{'start':0,'end':1,'text':'Ein Missverständnis.'}]
+        editorial={'title':'Ein eigener Titel','chat_id':None,'chat_quote':'','reply_excerpt':''}
+        self.service.store.put(self.clip['id'],'analyzing',editorial=editorial,
+                               editorial_context={'key':'original','pages':pages,'candidates':[]})
+        with patch('clip2short.editorial.chat_candidates') as scan,patch('clip2short.ai.editorial') as ai:
+            result=self.service.prepare_editorial(self.clip['id'],source,{},pages)
+        self.assertEqual(result,editorial);scan.assert_not_called();ai.assert_not_called()
+        self.assertEqual(self.service.store.get(self.clip['id'])['editorial_context']['source_sha256'],hashlib.sha256(source.read_bytes()).hexdigest())
+
     def test_activation_cutoff_survives_restart(self):
         first=self.service.store.armed_at
         self.service.close=lambda:None  # below closes resources exactly once

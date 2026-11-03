@@ -202,11 +202,26 @@ class Service:
     def prepare_editorial(self,ident,source,metadata,pages,preview=False):
         from .editorial import chat_candidates
         prefix='preview_' if preview else ''
+        job=self.store.get(ident)
+        fingerprint=hashlib.sha256(Path(source).read_bytes()).hexdigest()
+        context=job.get(prefix+'editorial_context') or {}
+        cached=job.get(prefix+'editorial')
+        if (not preview and cached and context.get('pages')==pages
+                and context.get('source_sha256',fingerprint)==fingerprint):
+            from .editorial import validate
+            try:
+                checked=validate({k:cached[k] for k in ('title','chat_id','reply_excerpt')},context)
+            except (ValueError,KeyError,TypeError):pass
+            else:
+                context['source_sha256']=fingerprint
+                self.store.update_fields(ident,editorial_context=context)
+                self.log('Bereits geprüfter Titel und Chatbezug werden wiederverwendet.')
+                return checked
         try: candidates=chat_candidates(source,metadata,self.stop,lambda m,f:self.log(m))
         except Exception:
             if self.stop.is_set():raise
             candidates=[];self.log('Chat war nicht sicher lesbar. Der Clip erhält kein Chat-Zitat.')
-        context={'key':secrets.token_urlsafe(20),'pages':pages,'candidates':candidates}
+        context={'key':secrets.token_urlsafe(20),'pages':pages,'candidates':candidates,'source_sha256':fingerprint}
         job=self.store.get(ident)
         self.store.update_if(ident,job['state'],**{prefix+'editorial_context':context,prefix+'editorial':None,prefix+'editorial_error':''})
         if self.cfg.get('transport')=='native':
@@ -344,10 +359,10 @@ class Service:
         self.store.put(ident,'transcribing'); pages=transcribe_project(base,lambda m,f:self.log(m),self.stop)
         base['captions']=pages; transcript=' '.join(p['text'] for p in pages)
         self.store.put(ident,'analyzing',transcript=transcript)
+        scenes,evidence=detect_scenes(source,metadata,job['category'],self.cfg,lambda m,f:self.log(m),self.stop)
         editorial=self.prepare_editorial(ident,source,metadata,pages)
         base.update(title=editorial['title'],chat_quote=editorial['chat_quote'])
         self.store.put(ident,'rendering')
-        scenes,evidence=detect_scenes(source,metadata,job['category'],self.cfg,lambda m,f:self.log(m),self.stop)
         self.render_output(base,scenes,metadata,output)
         digest=hashlib.sha256(output.read_bytes()).hexdigest()
         job=self.store.put(ident,'ready',transcript=transcript,output=str(output),sha256=digest,scenes=scenes,privacy=self.cfg['privacy'])

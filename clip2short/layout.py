@@ -46,7 +46,9 @@ def image_kind(image):
 def classify(found,kind,margin,category,cfg):
     large=[f for f in found if f['width']>=.125 and .2<f['x']+f['width']/2<.8]
     small=[f for f in found if f['x']+f['width']/2>=.73 and f['width']<.18]
-    if large and not small:
+    # Small false positives in logos/backgrounds must not override a clearly
+    # recognised full camera containing a large central face.
+    if large and (not small or (cfg.get('vision',True) and kind=='camera' and margin>=.08)):
         # A character or a face in a reaction video is not proof of the streamer's full camera.
         if cfg.get('vision',True) and margin>=.08 and kind in ('gameplay','reaction'): return None
         return 'camera'

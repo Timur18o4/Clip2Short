@@ -1,5 +1,11 @@
 # Änderungen
 
+## 0.2.1 — 2026-11-03
+
+- Kleine Gesicht-Fehlfunde im Hintergrund überschreiben eine durch Bildanalyse und großes Gesicht belegte Kameraansicht nicht mehr.
+- Wiederholte Verarbeitung übernimmt bereits geprüfte Titel und Chatbezüge bei unverändertem Inhalt. Explizite KI-Vorschauen bleiben neu erzeugbar.
+- Bildprofile werden vor der Titelerstellung geprüft, damit ein ungültiger Ausschnitt keine unnötige KI-Erzeugung auslöst.
+
 ## 0.2.0 — 2026-11-03
 
 - Direkte Lumia-Anbindung über `run-actions`: kein zusätzlicher Code-Befehl und keine Befehlsnamenskollision erforderlich. Bestehende Installationen können die bisherige Brücke bis zur geprüften Umstellung behalten.

@@ -1,5 +1,12 @@
 # Prüfstand
 
+## Korrektur 0.2.1 am 03.11.2026
+
+- 61 Python-Tests und sieben Lumia-Vertragstests bestanden.
+- Der betroffene lokale Kamera-Clip bestand mit unveränderten Quellprofilen alle 16 Stichproben als durchgehende Kameraansicht. Zuvor führten kleine Gesicht-Fehlfunde am Ende zur falschen Reaction-Auswahl.
+- Wiederverwendung bereits geprüfter Titel ohne erneuten KI-/OCR-Aufruf getestet. Die Gesicht-Abdeckungsprüfung bleibt bestehen.
+- Keine TikTok-Veröffentlichung für diesen Korrekturtest ausgelöst.
+
 ## Version 0.2.0 am 03.11.2026
 
 - 59 Python-Tests, sieben Lumia-Vertragstests und die Syntaxprüfung beider Browseroberflächen erfolgreich ausgeführt.
