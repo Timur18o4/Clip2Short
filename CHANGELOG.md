@@ -1,5 +1,9 @@
 # Änderungen
 
+## 1.0.0
+
+Erste reguläre Veröffentlichung mit direkter Twitch-Erkennung, lokalem Export und TikTok-Uploadhilfe. Lumia bleibt als Quelle und für automatische TikTok-Übergaben verfügbar.
+
 ## 0.3.0
 
 - Direkte Twitch-Erkennung über Helix im 30-Sekunden-Takt. Die Einrichtung kann ohne Lumia abgeschlossen werden.

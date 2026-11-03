@@ -4,7 +4,7 @@ Windows-Hintergrunddienst für **neue Twitch-Clips → Hochkantvideo → Unterti
 
 [![Tests](https://github.com/Timur18o4/Clip2Short/actions/workflows/tests.yml/badge.svg)](https://github.com/Timur18o4/Clip2Short/actions/workflows/tests.yml)
 
-**v0.3.0 · öffentliche Testversion.** Neue Installationen benötigen keinen zusätzlichen Lumia-Befehl. Ersteinrichtung und Ausschnitteditor laufen im Browser auf dem eigenen PC.
+**v1.0.0 · erste reguläre Veröffentlichung.** Neue Installationen benötigen keinen zusätzlichen Lumia-Befehl. Ersteinrichtung und Ausschnitteditor laufen im Browser auf dem eigenen PC.
 
 
 Für den Betrieb ohne Lumia unter **Einrichtung & KI-Auswahl** die Clip-Quelle **Direkt über Twitch** wählen. Twitch-Kanal, Client-ID und Client-Secret einer eigenen [Twitch-App](https://dev.twitch.tv/console/apps) eingeben. Die Zugangsdaten werden lokal verschlüsselt gespeichert. Für Titel stehen der Originaltitel und Ollama zur Wahl. Bei einer bestehenden Installation Clip2Short nach dem Speichern einmal neu starten. Die direkte Erkennung berücksichtigt neue Clips ab ihrer Aktivierung und fragt Twitch alle 30 Sekunden ab. Fertige MP4s lassen sich über **TikTok-Upload vorbereiten** in TikTok Studio weiterverwenden.
