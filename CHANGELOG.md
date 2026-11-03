@@ -1,5 +1,10 @@
 # Änderungen
 
+## 0.2.2 — 2026-11-03
+
+- Unsichere Bildklassifikationen verwenden benachbarte verlässliche Szenen statt einen unbelegten Wechsel zum Reaction-Profil auszulösen.
+- Status zeigt Originaltitel, Erstellungszeit, Clip-ID und Twitch-Link; Originalvideos lassen sich auch ohne fertigen Export lokal ansehen.
+
 ## 0.2.1 — 2026-11-03
 
 - Kleine Gesicht-Fehlfunde im Hintergrund überschreiben eine durch Bildanalyse und großes Gesicht belegte Kameraansicht nicht mehr.

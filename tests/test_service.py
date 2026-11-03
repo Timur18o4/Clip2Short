@@ -30,6 +30,17 @@ class ServiceTests(unittest.TestCase):
         path=Path(self.tmp.name)/'renders'/'test.mp4'; path.write_bytes(b'rendered-video')
         return self.service.store.put(self.clip['id'],'ready',clip=self.clip,category='Just Chatting',transcript='Ein Missverständnis.',output=str(path),sha256=hashlib.sha256(path.read_bytes()).hexdigest(),privacy=privacy)
 
+    def test_uncertain_game_frames_do_not_switch_to_wrong_reaction_crop(self):
+        from clip2short.layout import detect_scenes,NeedsLayoutReview
+        cfg=self.service.cfg
+        cfg['profiles']['reaction']['facecam']={'x':.75,'y':.65,'width':.24,'height':.3}
+        face={'x':.83,'y':.36,'width':.09,'height':.16}
+        with patch('clip2short.layout.extract_frame'),patch('clip2short.layout.faces',return_value=[face]),patch('clip2short.layout.image_kind',side_effect=[('camera',.6),('gameplay',.9),('gameplay',.9),('gameplay',.02),('gameplay',.9)]):
+            spans,_=detect_scenes('fixture',{'duration':10,'width':1920,'height':1080},'Fortnite',cfg)
+        self.assertEqual([s['name'] for s in spans],['gameplay'])
+        with patch('clip2short.layout.extract_frame'),patch('clip2short.layout.faces',return_value=[face]),patch('clip2short.layout.image_kind',return_value=('reaction',.9)):
+            with self.assertRaises(NeedsLayoutReview):detect_scenes('fixture',{'duration':10,'width':1920,'height':1080},'Fortnite',cfg)
+
     def test_large_camera_is_not_overridden_by_small_background_face(self):
         detected=[{'x':.37,'y':.27,'width':.2,'height':.36},
                   {'x':.735,'y':.72,'width':.06,'height':.107}]

@@ -75,6 +75,11 @@ def detect_scenes(source,metadata,category,cfg,progress=lambda *_:None,cancel=No
         detected=faces(image)
         kind,margin=image_kind(image) if cfg.get('vision',True) else ('',0)
         name=classify(detected,kind,margin,category,cfg)
+        # "Reaction" is also the conservative fallback for an uncertain small
+        # webcam. It is not positive evidence of a different OBS layout.
+        if (cfg.get('vision',True) and name=='reaction' and kind!='reaction'
+                and (kind=='camera' or margin<.08)):
+            name=None
         decisions.append({'time':position,'name':name,'faces':detected,'kind':kind,'margin':margin})
     known=[d['name'] for d in decisions if d['name']]
     if not known or len(known)/len(decisions)<.5: raise NeedsLayoutReview('Webcam nicht verlässlich erkannt. Bildprofil einmal prüfen; kein automatischer Upload.')

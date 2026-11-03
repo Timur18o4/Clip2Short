@@ -52,11 +52,15 @@ def serve(service):
                     self.reply(200,job)
                 except Exception as exc: self.reply(400,{'error':str(exc)})
                 return
-            if path.startswith('/api/media/'):
+            if path.startswith('/api/media/') or path.startswith('/api/original/'):
                 try:
                     job=service.public_job(unquote(path.rsplit('/',1)[1])); variant='preview_output' if parse_qs(urlparse(self.path).query).get('preview')==['1'] else 'output'
-                    file=Path(job[variant]).resolve()
-                    if file.parent!=(service.root/'renders').resolve() or not file.is_file(): raise ValueError('Video fehlt.')
+                    if path.startswith('/api/original/'):
+                        from .studio import source_path
+                        file=source_path(service,'job:'+job['id'])
+                    else:
+                        file=Path(job[variant]).resolve()
+                        if file.parent!=(service.root/'renders').resolve() or not file.is_file(): raise ValueError('Video fehlt.')
                     raw=file.read_bytes(); self.send_response(200);self.send_header('Content-Type','video/mp4')
                     self.send_header('Content-Length',str(len(raw)));self.send_header('Cache-Control','no-store');self.end_headers();self.wfile.write(raw)
                 except Exception as exc: self.reply(400,{'error':str(exc)})

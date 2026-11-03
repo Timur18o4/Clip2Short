@@ -1,5 +1,12 @@
 # Prüfstand
 
+## Korrektur 0.2.2 am 03.11.2026
+
+- 62 Python-Tests, sieben Lumia-Vertragstests und Frontend-Syntaxprüfung bestanden.
+- Aufgezeichnete Bildbefunde des betroffenen Fortnite-Clips erneut durch die korrigierte Szenenwahl verarbeitet: durchgehend Gameplay statt unbelegter Reaction-Wechsel. Mit unveränderten Profilen wurde die vollständige 30-Sekunden-MP4 lokal gerendert und ein Ausgabestandbild geprüft.
+- Originaltitel, Zeitpunkt und Twitch-Link sowie lokale Originalwiedergabe in der tatsächlichen Browseroberfläche geprüft; keine JavaScript-Fehler. Originalmedien benötigen die lokale Autorisierung.
+- Einstellungen und Zugangsdaten beim Update anhand ihrer Prüfsummen unverändert; kein TikTok-Upload für diesen Test.
+
 ## Korrektur 0.2.1 am 03.11.2026
 
 - 61 Python-Tests und sieben Lumia-Vertragstests bestanden.
