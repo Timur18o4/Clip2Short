@@ -4,118 +4,88 @@ Windows-Hintergrunddienst für **neue Twitch-Clips → Hochkantvideo → Unterti
 
 [![Tests](https://github.com/Timur18o4/Clip2Short/actions/workflows/tests.yml/badge.svg)](https://github.com/Timur18o4/Clip2Short/actions/workflows/tests.yml)
 
-**v0.1.1 · öffentliche Testversion.** Die Bildaufteilung und der Chatbezug werden automatisch eingeschätzt. Bei unsicherer Kameraerkennung hält der Dienst den Clip zur Prüfung an. Die Referenzprofile müssen zu den eigenen OBS-Szenen passen.
+**v0.2.0 · öffentliche Testversion.** Neue Installationen benötigen keinen zusätzlichen Lumia-Befehl. Ersteinrichtung und Ausschnitteditor laufen im Browser auf dem eigenen PC.
 
 ## Funktionen
 
-- Erkennt neue Twitch-Clips über Lumias `twitch-clip`-Ereignis; prüft beim Verbinden auch gepufferte Lumia-Ereignisse.
-- Verarbeitet ausschließlich Clips, deren Twitch-Erstellungsdatum **nach der ersten Dienstaktivierung** liegt. Bekannte IDs und Replays werden ignoriert.
-- Lädt genau den gemeldeten öffentlichen Clip. Kein historischer Clip wird ersatzweise verwendet.
-- Erstellt lokal zeitgesteuerte Untertitel mit Faster Whisper.
-- Liest sichtbare Chatnachrichten mit RapidOCR. Ein Chat-Zitat wird nur aus mehrfach gelesenen Kandidaten ausgewählt; die KI muss einen passenden Untertitelausschnitt als Beleg liefern.
-- Erzeugt über Lumias `ai_prompt` einen eigenen Videotitel statt der unveränderten Twitch-Überschrift.
-- Unterscheidet große Kamera, Gameplay mit Webcam und Desktop/Reaction mit Webcam anhand von Stichproben. Innerhalb eines Clips sind Layoutwechsel möglich.
-- Rendert mit FFmpeg in 1080 × 1920 mit eingebrannten Untertiteln und CNG-PLATTFORM.COM-Branding. Titel, Chatkontext und Untertitel stehen außerhalb des Hauptbilds und der Webcam.
-- Erzeugt über Lumia eine TikTok-Beschreibung mit maximal 150 Zeichen und genau vier Hashtags. Der vierte Hashtag entspricht der Clip-Kategorie.
-- Veröffentlicht über Lumias `uploadAndPublishVideo`, mit dauerhaft gespeicherter einmaliger Upload-Freigabe gegen blinde Doppelposts.
-- Bietet einen lokalen Status, Bildprofile, MP4-Vorschau und eine lokale KI-Vorschau für bereits übergebene Clips.
-- Startet optional bei der Windows-Anmeldung über die Aufgabenplanung und wartet automatisch auf Lumia.
+- Erkennt neue Twitch-Clip-Ereignisse aus Lumia. Nur Clips nach der ersten Aktivierung; bekannte IDs und Replays werden ignoriert.
+- Prüft die exakte öffentliche Twitch-Clip-ID, Kanal, Datum und Kategorie über yt-dlp. Kein historischer Clip wird ersatzweise verwendet.
+- Erstellt Untertitel mit lokalem Faster Whisper und prüft sichtbare Chatnachrichten mit RapidOCR.
+- Erzeugt eigene Titel, belegten Chatbezug und Beschreibung über Lumia-KI oder lokales Ollama. Der lokale Weg benötigt kein OpenAI-Konto und keinen OpenAI-API-Schlüssel.
+- Erkennt große Kamera, Gameplay und Desktop/Reaction anhand von Stichproben. Bildprofile müssen zu den eigenen OBS-Szenen passen.
+- Visueller Editor: Ausschnitte im Original markieren, Zielflächen im Hochkantvideo verschieben und eine echte Render-Vorschau ansehen.
+- Drei Vorlagen, Farben, Schriften, Untertitelboxen, eigene Fußzeile und Hintergrundbilder. Die Gestaltung wird auch beim Export verwendet.
+- Übergabe fertiger Videos über Lumias Aktionsschnittstelle an TikTok. Eine einmalige Upload-Freigabe verhindert blinde Doppelposts.
+- Windows-Autostart, lokale Video-Vorschau und dauerhaft gespeicherte Aufträge.
 
-## Ablauf
+## Einrichtung auf einem weiteren Windows-PC
 
-```mermaid
-flowchart TD
-    T[Neuer Twitch-Clip] --> L[Lumia: Clip-Ereignis]
-    L --> S[Lokaler Dienst: Datum, Kanal und ID prüfen]
-    S --> M[Lumia: Twitch-Metadaten lesen]
-    M --> D[Lokaler Download des gemeldeten Clips]
-    D --> A[Whisper-Untertitel und Chat-Texterkennung]
-    A --> K[Lumia-KI: eigener Titel und belegter Chatbezug]
-    K --> V[Lokale Kamera- und Szenenprüfung]
-    V --> R[FFmpeg: Hochkantvideo rendern]
-    R --> C[Lumia-KI: Beschreibung und vier Hashtags]
-    C --> F[Einmalige Upload-Freigabe]
-    F --> P[Lumia: TikTok-Upload]
-```
+1. Das [Windows-Programm-ZIP](https://github.com/Timur18o4/Clip2Short/releases) in einen dauerhaften beschreibbaren Ordner entpacken.
+2. `EINRICHTEN.cmd` öffnen und **Einrichten** wählen. Fehlendes Python 3.12 und FFmpeg werden geladen und geprüft. Für lokale Text-KI kann zusätzlich Ollama vorbereitet werden. Mehrere GB freier Speicher und Internet sind erforderlich.
+3. Lumia öffnen, eigenes Twitch- und gewünschtes TikTok-Konto verbinden und die lokale API aktivieren. Den eigenen Lumia-API-Token in der Browser-Ersteinrichtung eingeben. Er wird nur lokal gespeichert und mit Windows-DPAPI verschlüsselt.
+4. **Lumia verbinden & prüfen** wählen. Clip2Short übernimmt den angemeldeten Twitch-Kanal. Es werden keine Befehle angelegt oder überschrieben; ein Ausweichname ist deshalb nicht nötig.
+5. KI auswählen: den Anbieter aus Lumia oder ein lokales Ollama-Modell. Die Oberfläche bietet bei Bedarf den Download von Qwen3 4B an (Modell ca. 2,5 GB).
+6. Einen eigenen kurzen Beispielclip laden. Hauptbild und Webcam für die drei Szenen markieren und die Hochkant-Vorschau prüfen. Ein Beispielclip dient nur der Gestaltung und wird dadurch nicht veröffentlicht.
+7. Design auswählen oder ein eigenes Hintergrundbild laden. Video-Zielflächen und Texte passend platzieren und speichern.
+8. Sichtbarkeit und automatische TikTok-Übergabe bewusst auswählen. Die Ersteinrichtung beginnt ohne automatische Übergabe; fertige Videos können zunächst lokal geprüft und gespeichert werden.
+9. Einrichtung abschließen. Optional richtet der Assistent den Windows-Autostart ein. Danach mit einem **neu erstellten** Twitch-Clip testen.
 
-Der Dienst läuft auf dem eigenen PC. Lumia erledigt die Twitch-Metadatenabfrage mit seiner bestehenden Anmeldung, die Text-KI-Aufrufe und den TikTok-Upload. Eine zusätzliche Twitch-App mit Client Secret ist für diesen Ablauf nicht vorgesehen.
+Lumia muss Clip-Ereignisse empfangen können. Der Assistent kann den Twitch-Clip-Alarm aktivieren. Wenn der Nutzer selbst Clips erstellt, darf Lumia diese nicht über **Clips vom Streamer ignorieren** unterdrücken. Je nach Lumia-Einstellung ist zusätzlich Stream-Modus erforderlich. Kontofreigaben bleiben beim Nutzer.
 
-## Voraussetzungen
-
-| Bestandteil | Voraussetzung |
-|---|---|
-| Betriebssystem | Windows 10/11, 64 Bit; Referenzumgebung Windows mit Python 3.12 |
-| Python | Python 3.12, erreichbar über die Standardinstallation oder `python.exe` im PATH |
-| FFmpeg | Vollständige Installation mit `ffmpeg` und `ffprobe`, beispielsweise `winget install --id Gyan.FFmpeg --exact` |
-| Lumia Stream | Getestet mit 9.3.4; lokale REST-/WebSocket-API, Custom Code, `ai_prompt`, Clip-Alarm und TikTok-Aktion erforderlich |
-| Lumia-Konten | Eigenes Twitch-Konto, gewünschtes TikTok-Konto und ein KI-Anbieter eingerichtet |
-| Speicher/Netz | Platz für Python-Pakete, Modellgewichte, Quelldateien und Exporte; Internet für Plattformzugriffe und erste Modelldownloads |
-
-Die lokale Analyse verwendet standardmäßig die CPU. Python, FFmpeg, Lumia, Modelle und Plattformzugänge sind **nicht** im Programm-ZIP enthalten. Die Installation lädt die Python-Pakete; Whisper und das Bildmodell laden bei Bedarf ihre Gewichte in den normalen Modellcache. KI-Aufrufe über Lumia können Kosten beim dort gewählten Anbieter verursachen.
-
-## Einrichtung
-
-1. Das [Windows-Programm-ZIP aus dem Release](https://github.com/Timur18o4/Clip2Short/releases) entpacken oder das Repository klonen. Einen dauerhaften Ordner wählen, beispielsweise `E:\Scripte\Clip2Short`.
-2. Python und vollständiges FFmpeg installieren. Lumia starten, die Konten verbinden und die lokale API aktivieren.
-3. `EINRICHTEN.cmd` ausführen. Das erstellt die Python-Umgebung, installiert die Abhängigkeiten und fragt **den eigenen Twitch-Kanal sowie den lokalen Lumia-API-Token** ab. Der Token wird verdeckt eingegeben und mit Windows-DPAPI gespeichert.
-4. In Lumia einen Chat-Befehl **`clip2short`** anlegen:
-   - nur für den Streamer freigeben;
-   - „Warteschlange überspringen“ aktivieren;
-   - den vollständigen Inhalt von [lumia/clip2short.js](lumia/clip2short.js) als Code-Aktion einfügen;
-   - keine Chat-Antwort ergänzen und die Lumia-Änderungen übernehmen.
-5. Den Twitch-Clip-Alarm aktivieren. **„Clips vom Streamer ignorieren“ ausschalten.** Der Alarm benötigt Stream-Modus, sofern er nicht ausdrücklich so eingestellt wurde, diesen zu ignorieren.
-6. `STARTEN.cmd` öffnen. Im Status „Lumia prüfen“ aufrufen und die Bildprofile unter „Bildprofile anpassen“ auf die eigenen OBS-Szenen abstimmen.
-7. Einen **neu erstellten** Twitch-Clip testen. Die Voreinstellung für neue Installationen lautet **„Nur ich“ / `SELF_ONLY`**. Den tatsächlich vorhandenen privaten Beitrag bei TikTok kontrollieren.
-8. Bei gewünschter öffentlicher Veröffentlichung die Sichtbarkeit im Status auf „Öffentlich“ stellen. Sie wird beim Fertigstellen eines Clips festgehalten; bestehende private Beiträge werden dadurch nicht verändert oder erneut hochgeladen.
-9. `AUTOSTART AN.cmd` ausführen, wenn der Dienst künftig bei der Windows-Anmeldung selbst starten soll. Lumia muss ebenfalls laufen beziehungsweise automatisch starten.
-
-Weitere Details: [Einrichtung und Fehlerbehebung](docs/SETUP.md), [Konfiguration und Datenordner](docs/CONFIGURATION.md).
+Voraussetzungen: Windows 10/11 x64, Lumia mit `run-actions` und aktivierter lokaler API (Referenzversion 9.3.4). Python, FFmpeg und Modelle sind nicht im kleinen Programm-ZIP enthalten; der Installer beziehungsweise die erste Nutzung lädt sie nach. Eine vollständige Installation auf frisch installiertem Windows ist noch nicht nachgewiesen; siehe [Prüfstand](docs/VALIDATION.md).
 
 ## Bedienung
 
-| Datei/Adresse | Zweck |
+| Datei oder Adresse | Zweck |
 |---|---|
-| `STARTEN.cmd` | Dienst bei Bedarf starten und Status öffnen |
-| `STOPPEN.cmd` | Hintergrunddienst beenden |
-| `AUTOSTART AN.cmd` | Windows-Auftrag für die eigene Anmeldung einrichten |
-| `AUTOSTART AUS.cmd` | Automatischen Start deaktivieren |
-| `http://127.0.0.1:39242` | Lokaler Status, Sichtbarkeit, Bildprofile und Video-Vorschau |
-| „KI-Vorschau erstellen“ | Lokale neue Gestaltung eines bereits übergebenen Clips; kein erneuter TikTok-Upload |
+| `EINRICHTEN.cmd` | Grafischer Komponenten-Installer und Browser-Ersteinrichtung |
+| `STARTEN.cmd` / `STOPPEN.cmd` | Hintergrunddienst starten beziehungsweise beenden |
+| `AUTOSTART AN.cmd` / `AUTOSTART AUS.cmd` | Start bei der Windows-Anmeldung verwalten |
+| `http://127.0.0.1:39242/` | Status, Sichtbarkeit und fertige Videos |
+| `/studio` | Quellausschnitte, Zielflächen und Design |
+| `/setup` | Lumia-Verbindung, KI-Auswahl und Ersteinrichtung |
 
-Der Windows-Auftrag heißt **Clip2Short**. Er läuft im angemeldeten Benutzerkonto, ohne Administratorrechte und ohne Laufzeitlimit. Bei unerwartetem Fehler sind bis zu zehn Neustartversuche im Minutenabstand vorgesehen. Falls die Aufgabenplanung nicht eingerichtet werden kann, verwendet das Skript den Benutzer-Autostart als Rückfallweg. Es handelt sich um einen Hintergrundprozess in der Benutzersitzung, nicht um einen Systemdienst vor der Anmeldung.
+Der Dienst läuft in der angemeldeten Benutzersitzung. Lumia muss ebenfalls laufen. Vorhandene Versionen können ihre bisherige Code-Befehlsbrücke behalten, bis sie unter **Einrichtung & KI-Auswahl** erfolgreich auf den direkten Weg umgestellt werden. Bestehende Befehle bleiben erhalten.
 
-## Daten und Zugriffsschutz
+## Eigene Gestaltung
 
-Der Standard-Datenordner ist `%LOCALAPPDATA%\Clip2Short`. `installation.json` merkt sich den tatsächlich gewählten Ort. Mit `CLIP2SHORT_CLIP_DATA` kann vor der Einrichtung ein eigener Ort gewählt werden.
+Links zeigt der Editor ein Standbild aus dem Quellclip; der Zeitpunkt ist verschiebbar. Rechtecke markieren Hauptbild und Webcam. Ziehen im Rechteck verschiebt es, Ziehen an den Ecken ändert die Größe, Ziehen außerhalb legt ein neues Rechteck an.
 
-- Originale: `clips/<Clip-ID>.mp4`; während des Downloads zunächst `.part`.
-- Fertige Videos: `renders/<Clip-ID>.mp4`; lokale Varianten enden auf `-preview.mp4`.
-- Untertitelcache: `transcripts/`; Berichte: `reports/`.
-- Datenbank: `jobs.sqlite3`; Protokolle: `service.log` und gegebenenfalls `runtime.log`.
-- Temporäres Rendering: `clip2short-scenes-*` im Datenordner, mit weiteren `.clip2short-render-*`-Ordnern.
-- Extrahierte Tonspuren: `clip2short-transcribe-*` im Windows-Tempordner.
+Rechts sind die Zielflächen für das 1080 × 1920-Video auswählbar. Auch Titel, Kategorie, Chat-Zitat, Untertitel und Fußzeile lassen sich platzieren. Videos werden proportional eingepasst. **Vorschau aktualisieren** verwendet denselben Renderer wie der Export. Untertitel dürfen Hauptbild und Webcam nicht überdecken.
 
-Originale, fertige Videos und Transkript-Caches bleiben gespeichert. Arbeitsordner werden normalerweise entfernt; nach hartem Prozessabbruch können Reste verbleiben. **Es gibt keine automatische Videolöschung.**
+Eigene PNG-, JPG- oder WebP-Hintergründe füllen die 9:16-Fläche. Das Bild liegt unter den Videoausschnitten und Texten; transparente Löcher sind nicht nötig. Die Video-Zielflächen werden auf die vorgesehenen Flächen des Designs gelegt. Ein Speichern verändert keine schon gerenderten Videos. Vorhandene persönliche Fußzeilen und Bildprofile bleiben bei einem Programm-Update erhalten.
 
-Zugangsdaten sind an das Windows-Konto gebunden. Der Twitch-Token bleibt in Lumia. Der Dienst bindet nur an `127.0.0.1`; schreibende Zugriffe benötigen einen lokalen Schlüssel. Die lokale API darf nicht ins Internet weitergeleitet werden. Untertitel und erkannte Chattexte werden für die Titel-/Beschreibungs-KI an den in Lumia konfigurierten Anbieter weitergegeben. Das fertige Video wird über Lumia an TikTok übertragen.
+## Daten und Zugriff
 
-Repository und Release enthalten **keine Kontodaten, Tokens, Datenbanken, privaten Einstellungen, Clips, Modellgewichte oder Browserprofile**. Die mitgelieferten Testdaten sind synthetische Beispiele. Siehe [SECURITY.md](SECURITY.md).
+Standard-Datenordner: `%LOCALAPPDATA%\Clip2Short`. `installation.json` merkt sich einen abweichenden Ort; `CLIP2SHORT_CLIP_DATA` kann ihn bei einer vorbereiteten Installation vorgeben.
+
+| Ort | Inhalt |
+|---|---|
+| `clips/` | Originaldateien neuer Twitch-Clips |
+| `renders/` | Fertige MP4s und lokale Varianten |
+| `transcripts/`, `reports/` | Untertitelcache und Verarbeitungsberichte |
+| `references/` | Lokal ausgewählte Beispielvideos, ausschließlich für den Editor |
+| `assets/` | Eigene Hintergrundbilder |
+| `jobs.sqlite3` | Aktivierungsdatum, bekannte IDs und Auftragszustände |
+| `credentials.dpapi`, `config.json` | Private Zugangsdaten und Einstellungen |
+| `.runtime/` im Programmordner | Heruntergeladene Python-/FFmpeg-Laufzeit |
+| `.installation/` im Programmordner | Installationsprotokolle |
+
+Originale und Exporte werden nicht automatisch gelöscht. Temporäre Render-/Audioordner werden normalerweise entfernt; nach einem harten Abbruch können Reste bleiben. Ollama verwaltet seine Modelle im eigenen Modellordner.
+
+Die Oberfläche bindet nur an localhost. Schreibzugriffe benötigen einen lokalen Schlüssel. Konto-Tokens, Medien, private Einstellungen und Modelle gehören nicht ins Repository. Der lokale KI-Weg verarbeitet Text lokal; der Lumia-KI-Weg übergibt Text an den in Lumia gewählten Anbieter. Ein zur TikTok-Übergabe ausgewähltes fertiges Video wird an TikTok übertragen.
 
 ## Grenzen
 
-- Die Kameraprofile sind Referenzwerte für eine 1920×1080-Quelle. Sie werden relativ zur Auflösung skaliert, müssen aber zur Szene passen. Ein Gesicht außerhalb des Profils hält den Clip zur Prüfung an.
-- Die Szenenprüfung arbeitet mit höchstens etwa 18 Stichproben, mindestens zwei Sekunden auseinander. Sehr kurze Wechsel können übersehen werden.
-- Chatkontext setzt sichtbare, lesbare Nachrichten an den Bildrändern mit erkennbarem Plattformkopf voraus. Nicht sichtbare Nachrichten werden nicht rekonstruiert. Die ausgewählte Chatzeile steht als Kontext im Kopfbereich; sie ist kein laufender Chatverlauf.
-- Sprache, Texterkennung, Titel und Antwortbezug können Fehler enthalten. Bei fehlender Chat-Evidenz wird kein Zitat verwendet.
-- Der bereits ausgewählte Twitch-Clip wird vollständig verarbeitet, maximal 180 Sekunden. Das Tool sucht nicht selbst nach Highlights in einem kompletten Stream.
-- Ereignisse können durch Lumia verzögert eintreffen. Es gibt keinen historischen Twitch-Abruf als Ersatz für fehlende Lumia-Ereignisse.
-- „An Lumia übergeben“ bestätigt die Rückkehr der Upload-Aktion, nicht TikToks abschließende Verarbeitung. Ein ungeklärter Upload wird nach der einmaligen Freigabe nicht blind wiederholt.
-- Die Standardports 39231 und 39242 sind in dieser Version aufeinander abgestimmt. Abweichende Ports benötigen Anpassungen an Dienst, Lumia-Code und Startskript.
-- Lumia, Twitch, TikTok und der öffentliche Clip-Download können ihre Schnittstellen ändern.
+- Szenen- und Chat-Erkennung, Transkripte und KI-Texte können Fehler enthalten. Unsichere Bildprofile halten den Clip zur Prüfung an.
+- Das Tool verarbeitet den ausgewählten Twitch-Clip, maximal 180 Sekunden; es sucht keine Highlights in ganzen Streams.
+- Ohne sicher lesbare Chatnachricht wird kein Chat-Zitat eingeblendet.
+- Lokale Text-KI kann auf der CPU deutlich länger brauchen. Ein bestimmtes Qualitätsniveau auf beliebiger Hardware ist nicht zugesichert.
+- Öffentliche Clip-Auflösung verwendet den Twitch-Extractor von yt-dlp; Plattformänderungen können Anpassungen verlangen. Ein tatsächlicher Streamtitel ist dabei nicht immer verfügbar; die KI erhält die Clipdaten und Untertitel.
+- Die Rückkehr einer Lumia-Uploadaktion ist keine verifizierte TikTok-Publikationsbestätigung. Ungeklärte Uploads werden nicht blind wiederholt.
+- Konto-Anmeldungen, API-Freigabe und die Kontrolle der Kameraausschnitte erfordern einmalig den Nutzer.
 
-Der tatsächliche Prüfstand und die noch nicht mit echten Clips überprüften Fälle stehen in [docs/VALIDATION.md](docs/VALIDATION.md).
-
-## Entwicklung
+## Entwicklung und Prüfung
 
 ```powershell
 python -m venv .venv
@@ -123,23 +93,21 @@ python -m venv .venv
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 node tests/lumia_contract.cjs
 .\.venv\Scripts\python.exe scripts/check_public_tree.py
+.\.venv\Scripts\python.exe scripts/build_release.py
 ```
 
-Für die Anwendung selbst wird `requirements.txt` benötigt. Die Tests verwenden keine echten Konten, laden keine alten Clips und führen keine Uploads aus. GitHub Actions prüft die Python- und Lumia-Vertragstests unter Windows.
+Automatische Tests verwenden simulierte Konten und veröffentlichen keine Videos. Für die Verarbeitung wird `requirements.txt` benötigt. Weitere Informationen: [Einrichtung](docs/SETUP.md), [Konfiguration](docs/CONFIGURATION.md), [Architektur](docs/ARCHITECTURE.md), [Prüfstand](docs/VALIDATION.md), [Sicherheit](SECURITY.md), [Änderungen](CHANGELOG.md).
 
 ## Lizenz
 
-**Derzeit ist keine Nutzungslizenz festgelegt.** Das Repository wird öffentlich zur Einsicht bereitgestellt; eine gesonderte Lizenzierung wurde noch nicht entschieden. Abhängigkeiten und Modelle unterliegen ihren jeweiligen Lizenzbedingungen. Siehe auch [GitHubs Hinweise zur Repository-Lizenzierung](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository).
+Derzeit ist keine Nutzungslizenz festgelegt. Abhängigkeiten und Modelle unterliegen ihren jeweiligen Lizenzbedingungen. [GitHubs Hinweise zur Lizenzierung](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository).
 
 ## Grundlagen
 
-- [Lumia: WebSocket-Ereignisse](https://dev.lumiastream.com/docs/websockets/listen-to-events)
-- [Lumia: Befehle und Laufzeitvariablen](https://dev.lumiastream.com/docs/rest/send-commands)
-- [Lumia: Custom Actions und TikTok](https://dev.lumiastream.com/docs/custom-code/custom-actions)
-- [Lumia: Variablenfunktionen](https://dev.lumiastream.com/docs/variable-functions)
-- [Twitch: Clip-Metadaten](https://dev.twitch.tv/docs/api/reference/#get-clips)
-- [yt-dlp: Twitch-Extractor](https://github.com/yt-dlp/yt-dlp/blob/master/yt_dlp/extractor/twitch.py)
-- [RapidOCR](https://github.com/RapidAI/RapidOCR)
-- [Whisper-Implementierung](https://github.com/SYSTRAN/faster-whisper)
-- [Lokales CLIP-Bildmodell](https://huggingface.co/openai/clip-vit-base-patch32)
-- [Änderungen](CHANGELOG.md)
+- [Lumia: Aktionsschnittstelle](https://dev.lumiastream.com/docs/rest/run-actions)
+- [Lumia: Ereignisse](https://dev.lumiastream.com/docs/websockets/listen-to-events)
+- [Ollama: Lokale API](https://docs.ollama.com/api/authentication)
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp)
+- [Faster Whisper](https://github.com/SYSTRAN/faster-whisper)
+- [Portable Python-Laufzeiten](https://github.com/astral-sh/python-build-standalone)
+- [FFmpeg-Builds](https://www.gyan.dev/ffmpeg/builds/)

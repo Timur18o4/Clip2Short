@@ -1,70 +1,42 @@
-# Einrichtung und Fehlerbehebung
+# Einrichtung und Aktualisierung
 
-## Datenordner selbst festlegen
+## Neue Installation
 
-Standardmäßig wird der lokale Windows-Anwendungsdatenordner verwendet. Für eine Installation mit allen Laufzeitdaten unter dem Programmordner kann die Einrichtung aus PowerShell erfolgen:
+`EINRICHTEN.cmd` öffnet `Installieren.ps1`. Der Installer sucht Python 3.12 und eine vollständige FFmpeg-Installation. Fehlende Laufzeiten werden im Programmordner bereitgestellt: portable Python-Laufzeit von astral-sh/python-build-standalone, geprüft gegen den SHA-256-Digest der Veröffentlichung; FFmpeg vom Build-Anbieter Gyan, geprüft gegen dessen SHA-256-Datei.
 
-```powershell
-Set-Location E:\Scripte\Clip2Short
-$env:CLIP2SHORT_CLIP_DATA = Join-Path $PWD 'Daten'
-.\EINRICHTEN.cmd
-```
+Die Bibliotheken werden in einer eigenen `.venv` installiert. Die optionale lokale Text-KI verwendet Ollama. Fehlt es, lädt der Installer den Hersteller-Installer und prüft dessen digitale Signatur. Danach öffnet sich die Browser-Ersteinrichtung. Downloads und Paketinstallation benötigen Internet und mehrere GB freien Speicher.
 
-Die Einrichtung schreibt den aufgelösten Ort in `installation.json`. Spätere Starts und der Windows-Auftrag lesen diesen Eintrag. Die Datei gehört nicht in GitHub. Vorhandene lokale Datenordner mit Datenbank und Zugangsdaten werden nicht durch das Programm-ZIP ersetzt.
+Die Ersteinrichtung prüft Lumia über eine harmlose Variable und Vorlagenauswertung, erkennt den Twitch-Kanal, speichert den API-Token mit Windows-DPAPI und bietet KI-, Sichtbarkeits-, Design- und Autostart-Auswahl. Ohne fertige Einrichtung wird keine Job-Datenbank mit vorzeitigem Aktivierungsdatum angelegt.
 
-## Lumia-Befehl
+Lumia-Anmeldungen bestätigt der Nutzer. Für selbst erstellte Twitch-Clips darf die Lumia-Option zum Ignorieren von Streamer-Clips nicht aktiv sein. Eine vorhandene fremde Befehlsliste wird nicht verändert: Der native Weg benötigt keinen zusätzlichen Befehl.
 
-Der Name muss exakt `clip2short` lauten. Im Codefeld ist der vollständige Inhalt von `lumia/clip2short.js` einschließlich `async function() { ... }` erforderlich. Den Befehl nur für den Streamer freigeben und die Warteschlange überspringen lassen. Keine eigene Chatbot-Antwort hinzufügen. Änderungen mit „Ausfüllen und speichern“ und gegebenenfalls „Aktualisierung“ übernehmen.
+## Gestaltung
 
-Die drei normalen Stufen sind:
+Unter `/studio` einen Beispielclip laden und die drei eigenen Szenenprofile prüfen. Die Referenz wird nur lokal gespeichert. Quell- und Zielflächen sind getrennt: Das linke Bild definiert, welcher Teil des Originals verwendet wird; das rechte Bild definiert den Platz im Export.
 
-| Stufe | Arbeit in Lumia |
-|---|---|
-| `resolve` | Exakte Clip-ID bei Twitch lesen; Kategorie und verfügbaren VOD-Titel auflösen |
-| `editorial` | Über `ai_prompt` eigenen Titel und gegebenenfalls eine belegte Chat-ID bestimmen |
-| `publish` | Beschreibung und Hashtags erzeugen; einmalige Freigabe beim Dienst holen; TikTok-Aktion ausführen |
+Ein Hintergrundbild füllt die 9:16-Fläche. Videoausschnitte und Texte liegen darüber. Die Auswahl einer Vorlage setzt die Farbfelder, verändert aber nicht automatisch die Quellausschnitte. Erst **Bildprofile & Design speichern** übernimmt Änderungen für neue Exporte. Die Vorschau veröffentlicht nichts.
 
-Zusätzlich gibt es `check` für die Verbindungsdiagnose. Die Stufen werden vom Dienst übergeben; es müssen keine einzelnen Chat-Befehle dafür angelegt werden.
-
-## Zuerst privat testen
-
-Ein Clip muss **nach der ersten Dienstaktivierung** erstellt worden sein. Ein neu erstellter Clip aus einem älteren VOD ist möglich: Maßgeblich ist das Erstellungsdatum des Clips. Ein bereits vorhandener alter Clip wird nicht zum Test herangezogen.
-
-Nach dem ersten Durchlauf bei TikTok prüfen, ob das Video tatsächlich unter „Nur ich“ vorhanden ist. Danach kann die Sichtbarkeit im Dienst geändert werden. Eine Umstellung betrifft künftig fertiggestellte Clips; sie bearbeitet keine bereits vorhandenen TikTok-Beiträge.
-
-## Häufige Fälle
-
-| Beobachtung | Prüfung |
-|---|---|
-| Kein Clip erscheint | Lumia läuft, API aktiv, Clip-Alarm aktiv, Stream-Modus passend, „Clips vom Streamer ignorieren“ aus; etwas Verzögerung berücksichtigen |
-| Clip wird ausgeschlossen | Kanal und offizielles Erstellungsdatum prüfen; alte/bekannte IDs und Replays sind absichtlich gesperrt |
-| Downloadfehler | Öffentliche Abrufbarkeit genau dieses Clips prüfen; gelöschte, private oder gesperrte Clips werden nicht umgangen; Twitch-Downloadänderungen können eine aktualisierte yt-dlp-Version erfordern |
-| Bildprofil prüfen | Positionen in Prozent des ursprünglichen Bilds korrigieren; Referenz-Webcam liegt rechts im Bild; danach vor Upload-Freigabe erneut versuchen |
-| Kein Chat-Zitat | Nachricht muss lesbar im Bild stehen, einen erkannten Plattformkopf haben und einen klaren Bezug zum Gesprochenen besitzen; ein Zitat ist optional |
-| Titelantwort ungültig | Lumia-KI-Anbieter und dessen Antwort prüfen; ohne gültigen eigenen Titel wird nicht mit einem Platzhalter veröffentlicht |
-| „An Lumia übergeben“, aber kein Beitrag | Im TikTok-Konto und in Lumia prüfen; der lokale Status beweist nicht die abschließende TikTok-Verarbeitung |
-| „Uploadstatus ungeklärt“ | Zuerst TikTok kontrollieren; keine blinde Wiederholung, weil ein Beitrag bereits existieren könnte |
-| Modell lädt lange | Erster Start kann Modelle herunterladen; CPU-Verarbeitung und Rendering können mehrere Minuten benötigen |
-| FFmpeg fehlt/unvollständig | Vollständige Version installieren; eine eingeschränkte Remotion-Version genügt nicht |
-
-Protokolle liegen im Datenordner. Vor dem Teilen einer Fehlerbeschreibung Kontodaten, Transkripte, lokale Pfade und etwaige vertrauliche Inhalte entfernen. Keine Zugangsdaten oder vollständigen Datenordner in öffentliche Issues hochladen.
-
-## Aktualisieren
-
-### Umstellung auf Clip2Short mit Version 0.1.1
-
-Die Programmmodule heißen jetzt `clip2short`, der Lumia-Befehl heißt `clip2short` und sein Code steht in `lumia/clip2short.js`. Befehl und Programmdateien müssen gemeinsam aktualisiert werden. Die neuen Umgebungsvariablen beginnen mit `CLIP2SHORT_`.
-
-Vor der Umstellung den bisherigen Autostart ausschalten und den Dienst stoppen. Den vorhandenen Datenordner mit Datenbank, Zugangsdaten und Konfiguration behalten; `installation.json` muss weiterhin auf diesen Ordner zeigen. Wird der Programmordner verschoben, die absoluten Medienpfade bestehender Aufträge entsprechend anpassen. In der privaten Konfiguration `command` auf `clip2short` setzen. Den vorhandenen Lumia-Befehl umbenennen und seinen Code ersetzen. Danach den Dienst und den neuen Autostart aktivieren.
-
-Die Einrichtungsroutine dabei nicht erneut ausführen. Der gespeicherte Aktivierungszeitpunkt und die bekannten Clip-IDs dürfen nicht zurückgesetzt werden, damit keine alten Clips oder doppelten Uploads entstehen. Bereits vorhandene Untertitel-Caches können in der neuen Version neu erzeugt werden.
-
-### Reguläres Update
+## Bestehende Installation aktualisieren
 
 1. Laufende Verarbeitung abschließen lassen und `STOPPEN.cmd` ausführen.
-2. Datenbank, Zugangsdaten und lokale Konfiguration sichern. Diese Dateien privat behalten.
-3. Programmdateien aktualisieren. `Daten`, `installation.json` und bestehende Benutzereinstellungen nicht mit einer fremden Installation ersetzen.
-4. Änderungen der Abhängigkeiten in einer passenden Python-Umgebung installieren. Nach einem Verschieben des Programmordners den Autostart am neuen Ort erneut einrichten.
-5. Dienst starten und einen neuen Clip zunächst mit kontrollierter Sichtbarkeit testen.
+2. Private Konfiguration und Job-Datenbank sichern. Vorhandenen Datenordner und `installation.json` behalten.
+3. Programmdateien aktualisieren. `.venv`, Laufzeitdaten, Zugangsdaten, Bildprofile und Medien nicht mit Daten einer fremden Installation ersetzen.
+4. Bei geänderten Abhängigkeiten `EINRICHTEN.cmd` verwenden. Die grafische Ersteinrichtung regeneriert den lokalen Schlüssel einer bestehenden Installation nicht beiläufig.
+5. Unter **Einrichtung & KI-Auswahl** die direkte Lumia-Anbindung prüfen und speichern. Bestehende Installationen ohne `transport`-Eintrag verwenden bis dahin ihre bisherige Befehlsbrücke.
+6. Dienst starten. Nach einem Verschieben des Programmordners den Autostart aktualisieren und vorhandene absolute Medienpfade berücksichtigen.
 
-Die erste Version enthält keinen automatischen Programm-Updater. Ein erneutes `EINRICHTEN.cmd` ist eine bewusste Neueinrichtung: Es fragt die Zugangsdaten erneut ab und erzeugt einen neuen lokalen Dienstschlüssel. Den Dienst vorher stoppen.
+Aktivierungsdatum und bekannte IDs dürfen nicht zurückgesetzt werden. Die Umstellung veröffentlicht keine schon übergebenen Clips erneut. Vorhandene persönliche Gestaltung bleibt erhalten, bis ein neues Design ausdrücklich gespeichert wird.
+
+## Frühere Befehlsbrücke
+
+Für Installationen mit der bisherigen Integration bleibt `lumia/clip2short.js` enthalten. Der gespeicherte `command`-Name wird unverändert verwendet. Diese Variante erfordert den manuell angelegten Code-Befehl und verwendet Lumias KI. Neue Installationen sollten den direkten Weg wählen; er benötigt Lumias Funktion `run-actions`.
+
+## Diagnose
+
+- `Installieren.ps1 -Pruefen` zeigt ohne Installation die gefundene Python-Laufzeit und vorhandene Programmumgebung.
+- Der Status bietet **Lumia prüfen**. Erfolgreiche Prüfung beweist den API-Zugriff, keinen fertigen TikTok-Upload.
+- Die lokale KI-Auswahl liest Ollama. Cloud-Modelle werden für diesen Weg nicht angeboten.
+- Bei unsicherem Bildprofil Quellausschnitte kontrollieren, Vorschau erstellen und danach den betroffenen Clip erneut versuchen.
+- Bei ungeklärtem Upload zuerst TikTok prüfen. Die Upload-Sperre verhindert eine blinde Wiederholung.
+
+Protokolle liegen im privaten Datenordner beziehungsweise unter `.installation` im Programmordner. Keine Tokens, Transkripte, privaten Pfade oder vollständigen Datenordner in öffentliche Issues kopieren.

@@ -19,7 +19,7 @@ def main():
             bundle.writestr('Clip2Short/'+path.relative_to(ROOT).as_posix(),raw)
     with zipfile.ZipFile(archive) as bundle:
         if bundle.testzip() is not None:raise ValueError('ZIP-Prüfung fehlgeschlagen.')
-        for required in ('STARTEN.cmd','EINRICHTEN.cmd','Verwalten.ps1','lumia/clip2short.js'):
+        for required in ('STARTEN.cmd','EINRICHTEN.cmd','Verwalten.ps1','Installieren.ps1','clip2short/studio.html','clip2short/wizard.py','clip2short/ai.py','lumia/clip2short.js'):
             if 'Clip2Short/'+required not in bundle.namelist():raise ValueError('Pflichtdatei fehlt: '+required)
     checksum=hashlib.sha256(archive.read_bytes()).hexdigest()
     archive.with_suffix('.zip.sha256').write_text(checksum+'  '+archive.name+'\n',encoding='ascii')

@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "channel": "mein_twitch_kanal",
+  "channel": "dein_kanal",
   "port": 39242,
   "lumia_url": "http://127.0.0.1:39231/api",
   "command": "clip2short",
@@ -8,10 +8,10 @@
   "enabled": true,
   "model": "medium",
   "fps": 60,
-  "auto_upload": true,
+  "auto_upload": false,
   "require_face": true,
   "vision": true,
-  "brand": "CNG-PLATTFORM.COM",
+  "brand": "",
   "profiles": {
     "camera": {
       "main": {
@@ -49,5 +49,9 @@
         "height": 0.3777778
       }
     }
-  }
+  },
+  "transport": "native",
+  "ai_provider": "lumia",
+  "ollama_url": "http://127.0.0.1:11434",
+  "ollama_model": ""
 }

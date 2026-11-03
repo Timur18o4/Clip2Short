@@ -20,6 +20,7 @@ class ServiceTests(unittest.TestCase):
         test_root.mkdir(parents=True,exist_ok=True)
         self.tmp=tempfile.TemporaryDirectory(dir=test_root); self.addCleanup(self.tmp.cleanup)
         self.service=Service(self.tmp.name,{'lumia_token':'test-only','bridge_key':'x'*40})
+        self.service.cfg['channel']='timur18o4'
         self.addCleanup(self.service.close)
         # Windows clocks can report the same tick for activation and the next call.
         created=(datetime.fromisoformat(self.service.store.armed_at)+timedelta(seconds=1)).isoformat()
@@ -100,7 +101,7 @@ class ServiceTests(unittest.TestCase):
     def test_pending_event_survives_restart_and_can_be_resolved(self):
         self.service.store.put(self.clip['id'],'resolving',clip={'id':self.clip['id']},resolve_attempts=1)
         self.service.close();self.service.close=lambda:None
-        again=Service(self.tmp.name,{'lumia_token':'test','bridge_key':'x'*40});self.addCleanup(again.close)
+        again=Service(self.tmp.name,{'lumia_token':'test','bridge_key':'x'*40});again.cfg['channel']='timur18o4';self.addCleanup(again.close)
         self.assertIn(self.clip['id'],again.resolving)
         result=again.resolved({'clip':self.clip,'category':'Just Chatting'})
         self.assertTrue(result['accepted']);self.assertEqual(again.work.qsize(),1)

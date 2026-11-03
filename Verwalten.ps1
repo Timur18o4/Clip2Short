@@ -1,4 +1,4 @@
-param([ValidateSet('Start','Setup','Stop','AutostartAn','AutostartAus')][string]$Action='Start')
+﻿param([ValidateSet('Start','Setup','Stop','AutostartAn','AutostartAus')][string]$Action='Start')
 $ErrorActionPreference='Stop'
 Set-Location -LiteralPath $PSScriptRoot
 $clipPython=Join-Path $PSScriptRoot '.venv\Scripts\python.exe'
@@ -9,27 +9,10 @@ if (Test-Path -LiteralPath $clipLocation) { $clipData=(Get-Content -LiteralPath 
 $startup=Join-Path ([Environment]::GetFolderPath('Startup')) 'Clip2Short.vbs'
 try {
     if ($Action -eq 'Setup') {
-        if (-not (Test-Path -LiteralPath $clipPython)) {
-            $base=Join-Path $env:LOCALAPPDATA 'Programs\Python\Python312\python.exe'
-            if (-not (Test-Path -LiteralPath $base)) {
-                $found=Get-Command python.exe -ErrorAction SilentlyContinue
-                if (-not $found) { throw 'Python 3.12 installieren, dann erneut starten.' }
-                $base=$found.Source
-            }
-            & $base -m venv (Join-Path $PSScriptRoot '.venv')
-            if ($LASTEXITCODE -ne 0) { throw 'Python-Umgebung konnte nicht angelegt werden.' }
-        }
-        & $clipPython -m pip install -r (Join-Path $PSScriptRoot 'requirements.txt')
-        if ($LASTEXITCODE -ne 0) { throw 'Bibliotheken konnten nicht installiert werden.' }
-        & $clipPython -c "from clip_engine.media import find_binary; find_binary('ffmpeg'); find_binary('ffprobe')"
-        if ($LASTEXITCODE -ne 0) { throw 'Vollstaendiges FFmpeg fehlt. winget install --id Gyan.FFmpeg --exact ausfuehren.' }
-        & $clipPython -m clip2short setup
-        if ($LASTEXITCODE -ne 0) { throw 'Einrichtung der Zugangsdaten fehlgeschlagen.' }
-        Write-Host 'Danach den Befehl aus lumia\clip2short.js in Lumia als Chat-Befehl clip2short anlegen.'
-        Write-Host 'STARTEN.cmd oeffnet den Dienststatus.' -ForegroundColor Green
+        & (Join-Path $PSScriptRoot 'Installieren.ps1')
         exit 0
     }
-    if (-not (Test-Path -LiteralPath $clipPython)) { throw 'Zuerst EINRICHTEN.cmd ausfuehren.' }
+    if (-not (Test-Path -LiteralPath $clipPython)) { & (Join-Path $PSScriptRoot 'Installieren.ps1'); exit }
     if ($Action -eq 'AutostartAn') {
         $clipAccount=[System.Security.Principal.WindowsIdentity]::GetCurrent().Name
         try {
@@ -63,16 +46,18 @@ try {
         exit 0
     }
     if ($Action -eq 'Stop') { & $clipPython -m clip2short stop; exit $LASTEXITCODE }
-    if (-not (Test-Path -LiteralPath (Join-Path $clipData 'credentials.dpapi'))) { throw 'Zuerst EINRICHTEN.cmd ausfuehren.' }
+    if (-not (Test-Path -LiteralPath (Join-Path $clipData 'credentials.dpapi'))) { Start-Process -FilePath $clipPythonw -ArgumentList '-m clip2short configure' -WorkingDirectory $PSScriptRoot -WindowStyle Hidden; exit }
     $running=$false
-    $clipExpectedChannel=(Get-Content -LiteralPath (Join-Path $clipData 'config.json') -Raw -Encoding UTF8 | ConvertFrom-Json).channel
-    try { $check=Invoke-RestMethod -Uri 'http://127.0.0.1:39242/health' -TimeoutSec 2; $running=($check.channel -eq $clipExpectedChannel) } catch { }
+    $clipSettings=Get-Content -LiteralPath (Join-Path $clipData 'config.json') -Raw -Encoding UTF8 | ConvertFrom-Json
+    $clipExpectedChannel=$clipSettings.channel
+    $clipPort=$clipSettings.port
+    try { $check=Invoke-RestMethod -Uri ('http://127.0.0.1:'+$clipPort+'/health') -TimeoutSec 2; $running=($check.channel -eq $clipExpectedChannel) } catch { }
     if (-not $running) {
         $existingTask=Get-ScheduledTask -TaskName 'Clip2Short' -ErrorAction SilentlyContinue
         if ($existingTask -and $existingTask.Description -eq 'Clip2Short: neue Twitch-Clips ueber Lumia' -and $existingTask.State -ne 'Disabled') { Start-ScheduledTask -TaskName 'Clip2Short' }
         else { Start-Process -FilePath $clipPythonw -ArgumentList @('-m','clip2short','run') -WorkingDirectory $PSScriptRoot -WindowStyle Hidden }
     }
-    Start-Process 'http://127.0.0.1:39242'
+    Start-Process ('http://127.0.0.1:'+$clipPort)
     exit 0
 } catch {
     Write-Host $_.Exception.Message -ForegroundColor Red

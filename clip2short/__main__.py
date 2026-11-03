@@ -13,9 +13,13 @@ def main():
     for stream in (sys.stdout,sys.stderr):
         if stream and hasattr(stream,'reconfigure'): stream.reconfigure(encoding='utf-8',errors='replace')
     p=argparse.ArgumentParser(description='Clip2Short – neue Twitch-Clips über Lumia')
-    p.add_argument('action',choices=['run','setup','dashboard','check','stop'],nargs='?',default='run')
+    p.add_argument('action',choices=['run','setup','configure','dashboard','check','stop'],nargs='?',default='run')
     p.add_argument('--channel',help='Twitch-Kanal beim Einrichten, ohne URL')
     a=p.parse_args(); root=data_dir()
+    if a.action=='configure' or (a.action=='run' and not (root/'credentials.dpapi').exists()):
+        from .wizard import run
+        if not run(root):return
+        a.action='run'
     if a.action=='run' and (sys.stdout is None or sys.stderr is None):
         root.mkdir(parents=True,exist_ok=True)
         background_log=(root/'runtime.log').open('a',encoding='utf8',buffering=1)

@@ -1,5 +1,7 @@
 import json
 import re
+import uuid
+import threading
 from urllib.parse import urlparse,quote
 import requests
 
@@ -8,6 +10,8 @@ class Lumia:
     def __init__(self,cfg,credentials):
         self.cfg=cfg; self.credentials=credentials
         self.session=requests.Session(); self.session.trust_env=False
+        self._template_lock=threading.Lock()
+        self._template_name='clip2short_result_'+uuid.uuid4().hex
 
     def call(self,kind,params=None,timeout=20):
         url=self.cfg['lumia_url'].rstrip('/')+'/send'
@@ -22,6 +26,35 @@ class Lumia:
         return data
 
     def variable(self,name): return self.call('get-variable-value',{'name':name}).get('message','')
+
+    def run_actions(self,actions,timeout=30):
+        return self.call('run-actions',{'actions':actions},timeout=timeout)
+
+    def evaluate(self,template,timeout=150):
+        # Reuse one owned variable under a lock. A timed-out request can still
+        # complete inside Lumia, so retire that name before the next request.
+        with self._template_lock:
+            name=self._template_name
+            try:
+                self.run_actions([{'base':'lumia','type':'updateVariable','value':{'value':name,'message':template}}],timeout)
+                return str(self.variable(name) or '')
+            except Exception:
+                self._template_name='clip2short_result_'+uuid.uuid4().hex
+                raise
+            finally:
+                try:self.run_actions([{'base':'lumia','type':'updateVariable','value':{'value':name,'message':''}}],15)
+                except Exception:self._template_name='clip2short_result_'+uuid.uuid4().hex
+
+    def probe_native(self):
+        if self.evaluate('{{math=19+23}}',30).strip()!='42':
+            raise RuntimeError('Lumias Aktionsschnittstelle unterstützt die benötigte Vorlagenauswertung nicht.')
+        channel=str(self.variable('twitch_username') or '').strip()
+        if not channel:raise RuntimeError('Bitte Twitch in Lumia verbinden.')
+        return {'channel':channel,'tiktok_username':str(self.variable('tiktok_username') or ''),'broadcaster_id':str(self.variable('twitch_user_id') or ''),
+                'message':'Lumia direkt erreichbar. Kein zusätzlicher Befehl erforderlich.','native':True}
+
+    def prepare_clip_events(self):
+        return self.run_actions([{'base':'lumia','type':'setAlert','value':{'value':'twitch-clip','on':True}}])
 
     def command(self,stage,ident,**extra):
         return self.call('chat-command',{'value':self.cfg['command'],'extraSettings':{

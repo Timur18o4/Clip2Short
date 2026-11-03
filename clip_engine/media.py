@@ -29,6 +29,7 @@ def find_binary(name: str) -> str:
             return str(path.resolve())
         raise RuntimeError(f"CLIP2SHORT_{name.upper()} verweist auf keine Datei: {override}")
     candidates: list[Path] = []
+    candidates.append(Path(__file__).resolve().parents[1]/'.runtime'/'ffmpeg'/'bin'/executable)
     on_path = shutil.which(name)
     if on_path:
         candidates.append(Path(on_path))

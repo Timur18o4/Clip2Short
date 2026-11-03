@@ -8,8 +8,8 @@ ROOT=Path(__file__).resolve().parents[1]
 DIRECTORIES={'clip2short','clip_engine','lumia','tests','docs','examples','scripts','.github'}
 ROOT_FILES={'README.md','CHANGELOG.md','SECURITY.md','VERSION','.gitignore','.gitattributes',
             'requirements.txt','requirements-test.txt','start_service.py','Verwalten.ps1',
-            'STARTEN.cmd','STOPPEN.cmd','EINRICHTEN.cmd','AUTOSTART AN.cmd','AUTOSTART AUS.cmd'}
-FORBIDDEN_PARTS={'Daten','data','.venv','venv','__pycache__','.test-temp','node_modules','.cache','dist','build'}
+            'STARTEN.cmd','STOPPEN.cmd','EINRICHTEN.cmd','AUTOSTART AN.cmd','AUTOSTART AUS.cmd','Installieren.ps1'}
+FORBIDDEN_PARTS={'Daten','data','.venv','venv','__pycache__','.test-temp','node_modules','.cache','dist','build','.runtime','.installation'}
 FORBIDDEN_EXTENSIONS={'.dpapi','.sqlite','.sqlite3','.db','.log','.lock','.part','.mp4','.mkv','.mov','.webm',
                       '.wav','.mp3','.onnx','.safetensors','.bin','.pt','.pth','.pyc','.zip','.png','.jpg','.jpeg'}
 PATTERNS={

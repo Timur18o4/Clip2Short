@@ -8,17 +8,22 @@ Ein kommentierungsfreies Beispiel ohne Zugangsdaten befindet sich unter [example
 
 | Feld | Bedeutung |
 |---|---|
-| `channel` | Eigener Twitch-Kanal; wird bei `setup` abgefragt |
+| `channel` | Eigener Twitch-Kanal; wird im Browser-Assistenten aus Lumia erkannt |
 | `privacy` | `SELF_ONLY` oder `PUBLIC_TO_EVERYONE`; frisch eingerichtet zunächst privat |
 | `enabled` | Neue Verarbeitung/Freigaben anhalten beziehungsweise fortsetzen |
 | `auto_upload` | Nach erfolgreichem Rendering Lumia zum Upload aufrufen |
 | `model` | Whisper-Sprachmodell; Referenzwert `medium` |
 | `fps` | Zielbildrate; Referenzwert 60 |
-| `brand` | Text der Fußzeile; Referenzwert `CNG-PLATTFORM.COM` |
+| `brand` | Optionaler eigener Text der Fußzeile; neue Installationen beginnen leer, vorhandene Werte bleiben erhalten |
+| `transport` | `native` für direkte Lumia-Aktionen; `command` für die bisherige Code-Befehlsbrücke |
+| `ai_provider` | `lumia` oder `ollama` für lokale Text-KI |
+| `ollama_url`, `ollama_model` | Lokale Ollama-Adresse und vorhandenes Modell; Cloud-Modelle sind ausgeschlossen |
+| `design` | Vorlage, Farben, Schrift, Untertitelbox, verwaltetes Hintergrundbild und relative Zielflächen |
 | `vision` | Lokales Bildmodell für die Inhaltsklassifikation verwenden |
 | `require_face` | Sichere Gesichtserkennung verlangen; in der Referenz aktiv |
 | `profiles` | Relative Rechtecke für `camera`, `gameplay` und `reaction` |
-| `port`, `lumia_url`, `command` | Aufeinander abgestimmte lokale Schnittstellen; in v0.1.0 nicht beliebig austauschbar |
+| `port`, `lumia_url` | Lokale Adressen; Lumia- und KI-Verbindungen bleiben auf localhost beschränkt |
+| `command` | Nur für die ältere Befehlsbrücke relevant; native Installationen benötigen keinen Befehl |
 
 Die normale Bedienung erfolgt im Status. Erweiterte Änderungen an der JSON-Konfiguration bei gestopptem Dienst vornehmen und danach neu starten.
 
@@ -31,6 +36,8 @@ Alle Rechtecke enthalten `x`, `y`, `width`, `height` als Werte von 0 bis 1 bezog
 - `reaction.main`: vollständiges Desktop-/Videobild; `reaction.facecam`: Webcam rechts.
 
 Die automatische Erkennung wählt ein Profil und kann es innerhalb des Clips wechseln. Sie ermittelt nicht beliebige Webcam-Rahmen millimetergenau aus jeder OBS-Szene. Passt die erkannte Person nicht in das Profil, wird der Clip zur Prüfung angehalten.
+
+Unter `/studio` sind die Quellausschnitte direkt auf einem Standbild auswählbar. `design.targets` enthält getrennte Zielflächen pro Ansicht (`main`, `facecam`, `title`, `caption`, `quote`, `category`, `footer`), relativ zu 1080 × 1920. Vorschau und Export verwenden dieselben Werte. Hintergrundbilder werden über den Editor als verwaltete Dateien geladen, nicht als beliebige Dateipfade.
 
 ## Umgebungsvariablen
 
@@ -52,6 +59,8 @@ Die automatische Erkennung wählt ein Profil und kann es innerhalb des Clips wec
 | `renders/<ID>-preview.mp4` | Lokale KI-Vorschau | Nein; eine neue Vorschau kann diese Variante ersetzen |
 | `transcripts/*.clip2short-transcript.json` | Cache der Untertitelseiten | Nein |
 | `reports/<ID>.json` | Analyse, Szenen, Untertitel und Gestaltung | Nein |
+| `references/` | Lokal ausgewählte Beispielclips und deren Namen; keine Uploadaufträge | Nein |
+| `assets/` | Eigene Hintergrundbilder als verwaltete PNG-Dateien | Nein |
 | `clip2short-scenes-*/` | Teilvideos und Renderarbeitsdateien; darunter `.clip2short-render-*` | Normalerweise nach Verarbeitung |
 | `jobs.sqlite3` | Aktivierungszeitpunkt, bekannte IDs, Zustände und Freigaben | Nein |
 | `config.json`, `credentials.dpapi` | Lokale Einstellungen und verschlüsselte Zugangsdaten | Nein |

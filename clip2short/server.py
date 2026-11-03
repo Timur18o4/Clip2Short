@@ -24,11 +24,22 @@ def serve(service):
         def do_GET(self):
             path=urlparse(self.path).path
             if self.headers.get('Host','').split(':')[0] not in ('127.0.0.1','localhost'): self.reply(403,{'error':'Nur localhost erlaubt.'}); return
-            if path=='/':
-                html=(Path(__file__).parent/'dashboard.html').read_text(encoding='utf-8').replace('__UI_KEY__',ui_key)
+            if path in ('/','/studio','/setup'):
+                name='studio.html' if path in ('/studio','/setup') or getattr(service,'setup_only',False) else 'dashboard.html'
+                html=(Path(__file__).parent/name).read_text(encoding='utf-8').replace('__UI_KEY__',ui_key).replace('__SETUP_MODE__','true' if path=='/setup' or getattr(service,'setup_only',False) else 'false')
                 self.reply(200,html,'text/html; charset=utf-8'); return
             if path=='/health': self.reply(200,{'ok':True,'armed_at':service.store.armed_at,'channel':service.cfg['channel']}); return
             if not self.authorized(): self.reply(401,{'error':'Nicht autorisiert.'}); return
+            if path=='/api/setup/progress':self.reply(200,getattr(service,'setup_progress',{'status':'idle'}));return
+            if path.startswith('/api/studio'):
+                try:
+                    from . import studio
+                    if path=='/api/studio':self.reply(200,studio.state(service));return
+                    if path=='/api/studio/frame':
+                        query=parse_qs(urlparse(self.path).query);self.reply(200,studio.frame(service,query['source'][0],query.get('at',['0'])[0]));return
+                    self.reply(404,{'error':'Nicht gefunden.'})
+                except Exception as exc:self.reply(400,{'error':str(exc)})
+                return
             if path=='/api/status':
                 diagnostic=service.root/'diagnostic.json'
                 self.reply(200,{'status':service.status,'diagnostic':json.loads(diagnostic.read_text(encoding='utf-8')) if diagnostic.exists() else {},'armed_at':service.store.armed_at,'config':service.cfg,'jobs':[service.public_job(j['id']) for j in service.store.list()]}); return
@@ -55,8 +66,21 @@ def serve(service):
             if not self.authorized(): self.reply(401,{'error':'Nicht autorisiert.'}); return
             try:
                 length=int(self.headers.get('Content-Length',0))
+                path=urlparse(self.path).path
+                if path in ('/api/studio/background','/api/studio/reference'):
+                    limit=12*1024*1024 if path.endswith('background') else 512*1024*1024
+                    if not 0<length<=limit:raise ValueError('Datei ist zu groß oder leer.')
+                    from . import studio
+                    self.reply(200,studio.background(service,self.rfile.read(length)) if path.endswith('background') else studio.upload_reference(service,self.rfile,length,self.headers.get('X-File-Name','')));return
                 if not 0<length<=262144: raise ValueError('Ungültige Nutzlastgröße.')
                 data=json.loads(self.rfile.read(length)); path=urlparse(self.path).path
+                if path.startswith('/api/setup/'):
+                    from .wizard import action
+                    self.reply(200,action(service,path,data));return
+                if path in ('/api/studio/save','/api/studio/preview'):
+                    from . import studio
+                    self.reply(200,studio.save(service,data) if path.endswith('save') else studio.preview(service,data));return
+                if getattr(service,'setup_only',False):raise ValueError('Bitte zuerst die Einrichtung abschließen.')
                 if path=='/api/eligible':
                     ident=data['clip']['id']; ok,reason=service.store.eligible(data['clip'],service.cfg['channel'])
                     if ident not in service.resolving: ok,reason=False,'kein neues Ereignis registriert'
@@ -98,7 +122,7 @@ def serve(service):
                                 if any(not isinstance(rect.get(k),(int,float)) or not math.isfinite(rect[k]) for k in ('x','y','width','height')) or min(rect['x'],rect['y'])<0 or min(rect['width'],rect['height'])<=0 or rect['x']+rect['width']>1.000001 or rect['y']+rect['height']>1.000001: raise ValueError('Ausschnitte müssen innerhalb des Quellbilds liegen (Werte 0–1).')
                         cfg['profiles'].update(data['profiles'])
                     save_config(cfg,service.root); service.cfg.update(cfg);self.reply(200,{'ok':True}); return
-                if path=='/api/check': service.lumia.command('check','diagnostic'); self.reply(200,{'ok':True}); return
+                if path=='/api/check': self.reply(200,service.check_connection()); return
                 if path=='/api/stop':
                     self.reply(200,{'ok':True});service.stop.set()
                     import threading

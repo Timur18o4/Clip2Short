@@ -14,6 +14,8 @@ clips/
 renders/
 reports/
 transcripts/
+references/
+assets/
 *.sqlite*
 *.db
 *.log
@@ -35,6 +37,8 @@ transcripts/
 
 # Local runtimes and test output
 .venv/
+.runtime/
+.installation/
 venv/
 __pycache__/
 *.py[cod]

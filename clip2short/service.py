@@ -115,6 +115,11 @@ class Service:
             return
         if not self.store.update_if(ident,'resolving',resolve_attempts=attempts+1,next_resolve=time.time()+max(45,30*2**attempts)): return
         try:
+            if self.cfg.get('transport')=='native':
+                from .downloads import resolve_public
+                self.resolved(resolve_public(ident,self.cfg['channel'],self.store.armed_at,self.cfg.get('broadcaster_id')))
+                self.log('Neuer Twitch-Clip direkt geprüft: '+ident)
+                return
             title=job.get('stream_title') or self.lumia.variable('twitch_channel_title')
             if not self.store.update_if(ident,'resolving',stream_title=str(title)): return
             self.lumia.command('resolve',ident,clip2short_stream_title=str(title),clip2short_armed_at=self.store.armed_at)
@@ -128,8 +133,41 @@ class Service:
         if attempts>=3: return
         # Repeating this command cannot publish twice: /api/claim is atomic and single-use.
         if not self.store.update_if(ident,'ready',dispatch_attempts=attempts+1,next_dispatch=time.time()+120*2**attempts): return
-        try: self.lumia.command('publish',ident)
+        try:
+            if self.cfg.get('transport')=='native':self.publish_native(ident)
+            else:self.lumia.command('publish',ident)
         except Exception: self.log('Lumia-Aufruf unbestätigt. Der Upload bleibt durch die einmalige Freigabe geschützt.')
+
+    def check_connection(self):
+        if self.cfg.get('transport')=='native':
+            result=self.lumia.probe_native()
+            if result['channel'].casefold()!=self.cfg['channel'].casefold():raise ValueError('Der Twitch-Kanal in Lumia stimmt nicht mit Clip2Short überein.')
+            self.diagnostic(result)
+            return result
+        self.lumia.command('check','diagnostic')
+        return {'message':'Prüfung des vorhandenen Lumia-Befehls gestartet.'}
+
+    def publish_native(self,ident):
+        from .ai import caption as generate_caption
+        job=self.store.get(ident);error=''
+        for _ in range(2):
+            try:
+                caption=generate_caption(self.cfg,self.lumia,job,error)
+                claim=self.claim_upload(ident,caption);break
+            except (ValueError,KeyError,TypeError) as exc:error=str(exc)
+        else:raise ValueError(error)
+        if not claim['claimed']:return
+        try:
+            result=self.lumia.run_actions([{'base':'tiktok','type':'uploadAndPublishVideo','value':{
+                'media':claim['media'],'title':claim['caption'],'privacy_level':claim['privacy'],
+                'disable_comment':False,'disable_duet':False,'disable_stitch':False}}],timeout=600)
+            if not isinstance(result.get('message'),dict) or result['message'].get('ran')!=1:
+                raise RuntimeError('Lumia hat die Übergabe der Uploadaktion nicht bestätigt.')
+            self.store.update_if(ident,'uploading','submitted',lumia_result=result,error='')
+            self.log('TikTok-Aufruf an Lumia übergeben; Verarbeitung bei TikTok ist noch nicht bestätigt.')
+        except Exception:
+            self.store.update_if(ident,'uploading','uncertain',error='Lumia-Upload nicht eindeutig bestätigt. Zuerst TikTok kontrollieren; keine automatische Wiederholung.')
+            raise
 
     def supervise(self):
         while not self.stop.wait(3):
@@ -171,6 +209,17 @@ class Service:
         context={'key':secrets.token_urlsafe(20),'pages':pages,'candidates':candidates}
         job=self.store.get(ident)
         self.store.update_if(ident,job['state'],**{prefix+'editorial_context':context,prefix+'editorial':None,prefix+'editorial_error':''})
+        if self.cfg.get('transport')=='native':
+            from .ai import editorial as generate_editorial
+            self.log('KI erstellt einen eigenen Titel und prüft den Chatbezug …')
+            error=''
+            for _ in range(2):
+                result=generate_editorial(self.cfg,self.lumia,job,context,error)
+                try:
+                    self.accept_editorial({'id':ident,'kind':'preview' if preview else 'main','analysis_key':context['key'],'result':result})
+                    return self.store.get(ident)[prefix+'editorial']
+                except ValueError as exc:error=str(exc)
+            raise ValueError(error or 'KI-Titel konnte nicht geprüft werden.')
         self.log('Lumia erstellt einen eigenen Titel und prüft den Chatbezug …')
         self.lumia.command('editorial',ident,clip2short_analysis_kind='preview' if preview else 'main')
         deadline=time.monotonic()+150
@@ -216,6 +265,8 @@ class Service:
                 base={'source':str(source),'output':str(output),'brand':self.cfg['brand'],'channel':self.cfg['channel'].upper(),
                       'accent':'#ffd13f','fps':self.cfg['fps'],'normalize_audio':True,'captions':pages,
                       'title':editorial['title'],'chat_quote':editorial['chat_quote'],'label':job['category'].upper()}
+                from .design import render_design
+                base['design']=render_design(self.cfg,self.root)
                 self.render_output(base,job['scenes'],metadata,output)
                 self.store.update_fields(ident,preview_output=str(output),preview_rendering=False)
                 self.log('KI-Vorschau fertig. Der vorhandene TikTok-Beitrag wurde nicht erneut hochgeladen.')
@@ -288,6 +339,8 @@ class Service:
               'transcription_model':self.cfg['model'],'brand':self.cfg['brand'],'channel':self.cfg['channel'].upper(),
               'accent':'#ffd13f','fps':self.cfg['fps'],'normalize_audio':True,'cleanup_regions':[],
               'title':str(job['clip'].get('title',''))[:75] or job['category'],'label':job['category'].upper()}
+        from .design import render_design
+        base['design']=render_design(self.cfg,self.root)
         self.store.put(ident,'transcribing'); pages=transcribe_project(base,lambda m,f:self.log(m),self.stop)
         base['captions']=pages; transcript=' '.join(p['text'] for p in pages)
         self.store.put(ident,'analyzing',transcript=transcript)
@@ -298,7 +351,7 @@ class Service:
         self.render_output(base,scenes,metadata,output)
         digest=hashlib.sha256(output.read_bytes()).hexdigest()
         job=self.store.put(ident,'ready',transcript=transcript,output=str(output),sha256=digest,scenes=scenes,privacy=self.cfg['privacy'])
-        (self.root/'reports'/f'{ident}.json').write_text(json.dumps({'clip':job['clip'],'category':job['category'],'scenes':scenes,'evidence':evidence,'captions':pages,'editorial':editorial},ensure_ascii=False,indent=2),encoding='utf-8')
+        (self.root/'reports'/f'{ident}.json').write_text(json.dumps({'clip':job['clip'],'category':job['category'],'scenes':scenes,'evidence':evidence,'captions':pages,'editorial':editorial,'design':base['design']},ensure_ascii=False,indent=2),encoding='utf-8')
         self.dispatch(ident)
         self.log('Hochkantclip fertig: '+ident)
 
@@ -308,7 +361,7 @@ class Service:
         pieces=[]
         with tempfile.TemporaryDirectory(prefix='clip2short-scenes-',dir=self.root) as temp:
             for index,scene in enumerate(scenes):
-                project={**base,'mode':'just_chatting' if scene['name']=='camera' else 'gameplay',
+                project={**base,'mode':'just_chatting' if scene['name']=='camera' else 'gameplay','scene_name':scene['name'],
                          'crops':scene['crops'],'segments':[{'start':scene['start'],'end':scene['end']}],
                          'output':str(Path(temp)/f'part{index}.mp4')}
                 render_project(project,lambda m,f:self.log(m),self.stop); pieces.append(Path(project['output']))

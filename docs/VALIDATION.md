@@ -1,4 +1,20 @@
-# Prüfstand der ersten Veröffentlichung
+# Prüfstand
+
+## Version 0.2.0 am 03.11.2026
+
+- 59 Python-Tests, sieben Lumia-Vertragstests und die Syntaxprüfung beider Browseroberflächen erfolgreich ausgeführt.
+- Native Lumia-Anbindung auf dem vorhandenen Rechner geprüft: Vorlagenauswertung, erkannter Twitch-Kanal, Text-KI und Aktivierung des Twitch-Clip-Alarms über `run-actions`. Kein neuer Code-Befehl war dafür nötig.
+- Ersteinrichtung mit getrenntem Datenordner und eigener lokaler Testoberfläche geprüft. Die Produktion wurde dafür nicht neu initialisiert. Die Tests erzeugten keine TikTok-Veröffentlichung.
+- Browserprüfung: Verbindung zu Lumia, lokale Modellliste, Referenzvideo, Standbild und Render-Vorschau; keine JavaScript-Laufzeitfehler und kein horizontaler Überlauf in der mobilen Ansicht.
+- Eigener Hintergrund und mit der Maus verschobene Quell-/Zielflächen gespeichert und als lokale MP4 mit 1080 × 1920 exportiert.
+- Die bisherige persönliche Gestaltung einschließlich Fußzeile wurde gegen die vorige Fassung pixelgleich verglichen.
+- Portable Python-3.12-Laufzeit heruntergeladen und anhand des veröffentlichten SHA-256-Digests geprüft. In einer getrennten Umgebung mit Testabhängigkeiten liefen die automatischen Tests. Dies ersetzt keine vollständige Neuinstallation von Windows.
+- Windows-PowerShell-Installer auf Syntax, Laufzeiterkennung und versteckte Prozessaufrufe mit korrekter Erkennung erfolgreicher sowie fehlgeschlagener Rückgabewerte geprüft.
+- Die lokale Ollama-Anbindung lieferte auf dem vorhandenen Rechner einen Titel und eine Beschreibung mit gültigem Ausgabeformat. Ein zuvor beobachteter Zeilenformat-Fehler wurde durch strukturierte JSON-Ausgabe für den lokalen Weg behoben; Inhaltsprüfung und kanonischer Kategorie-Hashtag bleiben im Programm. Laufzeit und Qualität hängen vom Modell und der Hardware ab.
+
+Noch offen: vollständiger Installer-Durchlauf auf frisch installiertem Windows, neue Installation des optionalen Ollama-Installers, erster echter Clip-Durchlauf mit TikTok-Veröffentlichung über den neuen nativen Weg und Erkennung beliebiger fremder OBS-Szenen. Der früher bestätigte Upload verwendete die bisherige Brücke und belegt diesen neuen Weg nicht.
+
+## Historischer Prüfstand der ersten Veröffentlichung
 
 ## Referenzdurchlauf am 31.10.2026
 

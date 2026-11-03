@@ -10,9 +10,9 @@ Auch verschlüsselte Zugangsdaten und lokale Datenbanken bleiben privat. `.gitig
 
 ## Laufender Dienst
 
-Die Schnittstellen sind für den eigenen PC gedacht. `127.0.0.1:39242` und Lumias lokale API nicht ins Internet weiterleiten. Die verschlüsselten Zugangsdaten gehören zum Windows-Benutzerkonto. Der Twitch-Anmeldetoken wird innerhalb von Lumia verwendet.
+Die Schnittstellen sind für den eigenen PC gedacht. `127.0.0.1:39242` und Lumias lokale API nicht ins Internet weiterleiten. Die verschlüsselten Zugangsdaten gehören zum Windows-Benutzerkonto. Die native Integration übernimmt keinen Twitch- oder TikTok-Anmeldetoken aus Lumia.
 
-Die KI erhält Textkontext aus Untertiteln und sichtbaren Chatnachrichten. Der gewählte KI-Anbieter wird in Lumia festgelegt. Der fertige Clip wird über Lumia an TikTok übertragen.
+Die KI erhält Textkontext aus Untertiteln und sichtbaren Chatnachrichten. Beim Lumia-Weg wird der Anbieter in Lumia festgelegt; Ollama verarbeitet den Text über eine lokale Adresse. Cloud-Modelle werden dort nicht angeboten. Ein zur TikTok-Übergabe ausgewählter fertiger Clip wird über Lumia an TikTok übertragen. Referenzvideos für den Editor gelangen nicht in die Job-Warteschlange und Hintergrundbilder bleiben im privaten Datenordner.
 
 ## Meldungen
 

@@ -2,23 +2,42 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from functools import wraps
+from contextvars import ContextVar
 import math
 import os
 from pathlib import Path
 import re
 
 from PIL import Image, ImageColor, ImageDraw, ImageFont
+from PIL import ImageOps
 
 WIDTH, HEIGHT = 1080, 1920
 BACKGROUND = (16, 16, 21)
+_FONT=ContextVar('clip2short_font',default='arial')
+
+
+def design_font(function):
+    @wraps(function)
+    def wrapped(project,*args,**kwargs):
+        token=_FONT.set(project.get('design',{}).get('font','arial'))
+        try:return function(project,*args,**kwargs)
+        finally:_FONT.reset(token)
+    return wrapped
+
+
+def _font(size: int, black: bool = False):
+    return _load_font(size,black,_FONT.get())
 
 
 @lru_cache(maxsize=256)
-def _font(size: int, black: bool = False):
+def _load_font(size,black,family):
     windows = Path(os.environ.get("WINDIR", "C:/Windows")) / "Fonts"
     names = [windows / ("ariblk.ttf" if black else "arialbd.ttf"),
              windows / "arialbd.ttf", "Arial Black.ttf" if black else "Arial Bold.ttf",
              "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"]
+    if family=='segoe':names.insert(0,windows/'segoeuib.ttf')
+    if family=='impact':names.insert(0,windows/'impact.ttf')
     for path in names:
         try:
             return ImageFont.truetype(str(path), size)
@@ -139,6 +158,17 @@ def build_layout(project: dict, metadata: dict) -> dict:
         layout["facecam"]["y"] += (494 - layout["facecam"]["height"]) // 2
     if project.get('chat_quote'):
         layout['quote_box']=(80,330,480,96) if mode=='gameplay' else (80,340,920,120)
+    target_mode=project.get('scene_name','camera' if mode=='just_chatting' else 'gameplay')
+    for part,r in project.get('design',{}).get('targets',{}).get(target_mode,{}).items():
+        box=tuple(round(r[k]*(WIDTH if k in ('x','width') else HEIGHT)) for k in ('x','y','width','height'))
+        if part in checked:layout[part]=_fit_crop(checked[part],box)
+        else:layout[part+'_box']=box
+    cx,cy,cw,ch=layout['caption_box']
+    for part in ('main','facecam'):
+        if part not in layout:continue
+        target=layout[part]
+        if min(cx+cw,target['x']+target['width'])>max(cx,target['x']) and min(cy+ch,target['y']+target['height'])>max(cy,target['y']):
+            raise ValueError('Untertitelfläche überlappt Hauptbild oder Webcam. Bitte die Zielflächen im Editor auseinanderziehen.')
     return layout
 
 
@@ -161,41 +191,48 @@ def _background():
     return result
 
 
+@design_font
 def build_artwork(project: dict, layout: dict) -> tuple[Image.Image, Image.Image]:
-    accent_text = project.get("accent", "#ffd13f")
+    design=project.get('design',{})
+    accent_text = design.get('accent',project.get("accent", "#ffd13f"))
     if not isinstance(accent_text, str) or not re.fullmatch(r"#[0-9a-fA-F]{6}", accent_text):
         raise ValueError("Akzentfarbe muss als #RRGGBB angegeben werden.")
     accent = ImageColor.getrgb(accent_text)
     background = _background().copy()
-    ImageDraw.Draw(background).rectangle((0, 660, WIDTH - 1, 665), fill=accent)
+    if design:
+        background=_background().copy() if design.get('preset')=='classic' and design['background']=='#101015' else Image.new('RGB',(WIDTH,HEIGHT),design['background'])
+        if design.get('background_path'):
+            with Image.open(design['background_path']) as supplied:
+                background=ImageOps.fit(supplied.convert('RGB'),(WIDTH,HEIGHT),method=Image.Resampling.LANCZOS)
+    if not design.get('background_path'):ImageDraw.Draw(background).rectangle((0, 660, WIDTH - 1, 665), fill=accent)
     overlay = Image.new("RGBA", (WIDTH, HEIGHT))
     draw = ImageDraw.Draw(overlay)
-    for y in range(1710, HEIGHT):
+    for y in range(1710, HEIGHT) if not design or (design.get('preset')=='classic' and not design.get('background_path')) else ():
         alpha = round(255 * min(1, (y - 1710) / (210 * .65)))
         draw.line((0, y, WIDTH, y), fill=(*BACKGROUND, alpha))
     gameplay = project.get("mode") == "gameplay"
     label = project.get("label", "GAMEPLAY" if gameplay else "JUST CHATTING")
-    _paste_text(overlay, label, (80, 118 if gameplay else 90, 490 if gameplay else 920, 65),
+    _paste_text(overlay, label, layout.get('category_box',(80, 118 if gameplay else 90, 490 if gameplay else 920, 65)),
                 44, color=accent, max_lines=1, tracking=5)
     title = project.get("title", "")
     quote = str(project.get("chat_quote", "")).strip()
-    _paste_text(overlay, title, (80, (210 if quote else 222) if gameplay else 184, 490 if gameplay else 920,
-                                (110 if quote else 202) if gameplay else (140 if quote else 270)),
+    _paste_text(overlay, title, layout.get('title_box',(80, (210 if quote else 222) if gameplay else 184, 490 if gameplay else 920,
+                                (110 if quote else 202) if gameplay else (140 if quote else 270))),
                 (68 if quote else 90) if gameplay else (90 if quote else 102), max_lines=2,
-                tracking=-4, line_height=1.03, black=True)
+                tracking=-4, line_height=1.03, black=True,color=design.get('title','white'))
     if quote:
         x,y,width,height=layout['quote_box']
         draw.rectangle((x,y,x+4,y+height), fill=accent)
         quote_text = quote if quote.lower().startswith("chat:") else f"Chat: „{quote}“"
         _paste_text(overlay, quote_text, (x+22,y,width-22,height), 32 if gameplay else 42,
-                    color=(212, 207, 212), max_lines=3, line_height=1.12)
+                    color=design.get('quote',(212, 207, 212)), max_lines=3, line_height=1.12)
     if gameplay:
         camera = layout["facecam"]
         draw.rectangle((camera["x"], camera["y"], camera["x"] + camera["width"] - 1,
                         camera["y"] + camera["height"] - 1), outline=(255, 255, 255, 36), width=2)
-    brand = str(project.get("brand", "CNG-PLATTFORM.COM"))
+    brand = str(project.get("brand", ""))
     channel = str(project.get("channel", ""))
-    pieces = [(brand, accent), (" / ", (119, 114, 122)), (channel, (255, 255, 255))]
+    pieces = [(brand, accent), (" / " if brand and channel else "", (119, 114, 122)), (channel, ImageColor.getrgb(design.get('footer','#ffffff')))]
     for size in range(43, 7, -1):
         font = _font(size)
         spacing = 2 * size / 43
@@ -210,22 +247,25 @@ def build_artwork(project: dict, layout: dict) -> tuple[Image.Image, Image.Image
         for char in text:
             fdraw.text((round(cursor), baseline), char, font=font, fill=color, anchor="ls")
             cursor += font.getlength(char) + spacing
-    overlay.alpha_composite(footer, (80, 1804))
+    footer_box=layout.get('footer_box',(80,1804,920,75))
+    overlay.alpha_composite(footer.resize((footer_box[2],footer_box[3])),footer_box[:2])
     return background, overlay
 
 
+@design_font
 def caption_artwork(project: dict, layout: dict, text: str = "") -> Image.Image:
     """Transparent header-sized PNG, never allowing caption pixels into the video."""
-    result = Image.new("RGBA", (WIDTH, 660))
+    result = Image.new("RGBA", (WIDTH, HEIGHT))
     if not str(text).strip():
         return result
     x, y, width, height = layout["caption_box"]
+    design=project.get('design',{})
     content, metrics = _text_tile(text, width - 36, height - 24, 52,
-                                  max_lines=2, line_height=1.12, shadow=True)
+                                  max_lines=2, line_height=1.12, shadow=True,color=design.get('subtitle','white'))
     block = Image.new("RGBA", (width, height))
     ImageDraw.Draw(block).rounded_rectangle(
         (0, 0, min(width - 1, metrics["width"] + 35), min(height - 1, metrics["height"] + 23)),
-        radius=8, fill=(12, 12, 16, 230))
+        radius=design.get('radius',8), fill=(*ImageColor.getrgb(design.get('panel','#0c0c10')),230))
     block.alpha_composite(content, (18, 12))
     result.alpha_composite(block, (x, y))
     return result

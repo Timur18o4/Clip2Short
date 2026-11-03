@@ -1,4 +1,3 @@
 @echo off
 cd /d "%~dp0"
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0Verwalten.ps1" -Action Setup
-pause
+powershell.exe -NoLogo -NoProfile -STA -WindowStyle Hidden -ExecutionPolicy Bypass -File "%~dp0Installieren.ps1"

@@ -16,9 +16,10 @@ def data_dir():
 
 
 def defaults():
-    return {'version':2,'channel':'timur18o4','port':39242,'lumia_url':'http://127.0.0.1:39231/api',
+    return {'version':2,'channel':'','port':39242,'lumia_url':'http://127.0.0.1:39231/api',
             'command':'clip2short','privacy':'SELF_ONLY','enabled':True,'model':'medium',
-            'fps':60,'auto_upload':True,'require_face':True,'vision':True,'brand':'CNG-PLATTFORM.COM',
+            'fps':60,'auto_upload':True,'require_face':True,'vision':True,'brand':'',
+            'transport':'native','ai_provider':'lumia','ollama_url':'http://127.0.0.1:11434','ollama_model':'',
             'profiles':{'camera':{'main':{'x':.234375,'y':0,'width':.5489583,'height':1}},
                         'gameplay':{'main':{'x':.234375,'y':0,'width':.5270833,'height':1},
                                     'facecam':{'x':.7958333,'y':.3240741,'width':.1807292,'height':.3777778}},
@@ -35,7 +36,10 @@ def channel_name(value):
 def load_config(root=None):
     root=Path(root or data_dir()); root.mkdir(parents=True,exist_ok=True)
     path=root/'config.json'; cfg=defaults()
-    if path.exists(): cfg.update(json.loads(path.read_text(encoding='utf-8')))
+    if path.exists():
+        saved=json.loads(path.read_text(encoding='utf-8'));cfg.update(saved)
+        # Existing installations stay on their tested bridge until explicitly migrated.
+        if 'transport' not in saved:cfg['transport']='command'
     if cfg['privacy'] not in ('SELF_ONLY','PUBLIC_TO_EVERYONE'): raise ValueError('Ungültige TikTok-Sichtbarkeit.')
     return cfg
 
@@ -58,9 +62,9 @@ def _dpapi(raw,decrypt=False):
     finally: ctypes.windll.kernel32.LocalFree(out.data)
 
 
-def save_secrets(token,root=None):
+def save_secrets(token,root=None,bridge_key=None):
     root=Path(root or data_dir()); root.mkdir(parents=True,exist_ok=True)
-    value={'lumia_token':token.strip(),'bridge_key':secrets.token_urlsafe(32)}
+    value={'lumia_token':token.strip(),'bridge_key':bridge_key or secrets.token_urlsafe(32)}
     (root/'credentials.dpapi').write_bytes(_dpapi(json.dumps(value).encode()))
     return value
 

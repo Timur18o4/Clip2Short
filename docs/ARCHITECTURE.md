@@ -1,61 +1,30 @@
-# Aufrufe und Ausführung
+# Ausführung und Schnittstellen
 
-## Prozesse
+## Nativer Ablauf ab Version 0.2.0
 
-Die Windows-Aufgabenplanung startet `.venv\Scripts\pythonw.exe -m clip2short run` mit dem Programmordner als Arbeitsverzeichnis. Der Dienst läuft in der angemeldeten Benutzersitzung. Lumia bleibt eine separate Anwendung.
+1. Lumia liefert neue Twitch-Clip-Ereignisse per WebSocket. Beim Verbinden werden gepufferte Ereignisse gelesen.
+2. Der Dienst registriert nur neue, nicht wiederholte IDs nach dem gespeicherten Aktivierungszeitpunkt.
+3. yt-dlp löst ausschließlich diese öffentliche Clip-ID auf. Kanal, ID, Datum, Kategorie und Länge werden geprüft. Es gibt keine historische Ersatzsuche.
+4. Download nach `clips/`, Transkription, Chat-Texterkennung und Szenenprüfung erfolgen lokal.
+5. Text-KI läuft über lokale Ollama-Aufrufe oder Lumias Vorlagenauswertung mit `run-actions / lumia / updateVariable`. Ein eigener gesperrter Variablenplatz wird wiederverwendet. Nach unklarem Timeout wird ein neuer Platz verwendet, damit eine verspätete Antwort keine neue ersetzt.
+6. Vorschau und Export teilen Layout, Schrift- und Bildgestaltung. Quellausschnitte sind relativ zum Original, Zielflächen relativ zu 1080 × 1920.
+7. Die einmalige Upload-Freigabe prüft Datei, Hash, Sichtbarkeit, Datum und Zustand. Danach verwendet der Dienst `run-actions / tiktok / uploadAndPublishVideo`.
+8. Eine abgeschlossene lokale Aktion wird als `submitted`, ein unklarer Ausgang als `uncertain` geführt. Beides wird nicht blind erneut veröffentlicht.
 
-Der Dienst enthält einen Ereignisempfänger, eine lokale Arbeitswarteschlange, eine Verarbeitungsroutine und die HTTP-Oberfläche. Pro Datenordner verhindert eine Dateisperre zwei Dienstinstanzen. Der Windows-Auftrag ignoriert zusätzliche Starts einer bereits laufenden Instanz.
+Kein zusätzlicher Lumia-Befehl ist für diesen Weg nötig. Native API-Aufrufe führen keinen benutzerdefinierten JavaScript-Code und keine Shell-Befehle in Lumia aus.
 
-## Kommunikationswege
+## Ersteinrichtung und Editor
 
-| Richtung | Aufruf | Zweck |
-|---|---|---|
-| Dienst → Lumia | WebSocket `ws://127.0.0.1:39231/api` | Nur Alert-Ereignisse abonnieren und `twitch-clip` auswerten |
-| Dienst → Lumia | `POST /api/mcp`, Tool `get_recent_events` | Einmal beim Verbinden gepufferte Twitch-Clip-Ereignisse nachholen |
-| Dienst → Lumia | `POST /api/send`, Typ `chat-command`, Wert `clip2short` | Mit `clip2short_stage` die Stufen `resolve`, `editorial` und `publish` aufrufen |
-| Lumia → Twitch | `GET /helix/clips`, `/helix/games`, gegebenenfalls `/helix/videos` | Metadaten genau der gemeldeten ID und passende Kategorie lesen |
-| Lumia → Dienst | `POST /api/eligible`, `POST /api/resolved` | Datum/Kanal prüfen und den neuen Clip in die Warteschlange übernehmen |
-| Dienst → Twitch | yt-dlp für `https://clips.twitch.tv/<ID>`, danach HTTPS-Mediendownload | Horizontale Datei ermitteln und laden; ID, Kanal und Datum erneut vergleichen |
-| Lumia → Dienst | `GET /api/jobs/<ID>`, `POST /api/editorial` | Textkontext beziehen und die geprüfte Titel-/Chatantwort zurückgeben |
-| Lumia → KI-Anbieter | `resolveVariables` mit `ai_prompt` | Titel/Chatbezug vor dem Rendern sowie Beschreibung/Hashtags danach erzeugen |
-| Lumia → Dienst | `POST /api/claim` | Datei und Caption prüfen; Upload atomar einmal freigeben |
-| Lumia → TikTok | Custom Action `tiktok / uploadAndPublishVideo` | Fertige MP4 mit der gespeicherten Sichtbarkeit übertragen |
-| Lumia → Dienst | `POST /api/result` | Rückkehr oder Fehler der Lumia-Aktion protokollieren |
+`SetupSession` bietet dieselbe lokale Oberfläche ohne Job-Datenbank, Warteschlange oder Uploadverarbeitung. Erst nach Abschluss startet der eigentliche Dienst. Die Einrichtung nutzt den eigenen lokalen API-Token und speichert ihn mit Windows-DPAPI. Der vorhandene Dienstschlüssel bleibt bei erneuter Konfiguration erhalten.
 
-Alle Dienst-Endpunkte liegen unter `http://127.0.0.1:39242`. Der lokale Dienstschlüssel wird zur Laufzeit übergeben; der veröffentlichte Lumia-Code enthält keinen Schlüssel.
+`/studio` verwaltet Referenzclips, Hintergrundbilder, relative Ausschnitte und Gestaltung. Medien werden nicht in die Job-Warteschlange übernommen. Schreibende Routen und private Medien benötigen einen lokalen UI-/Dienstschlüssel; der Server akzeptiert nur localhost.
 
-## Verarbeitung auf dem PC
+## Kompatibilität
 
-1. Offizielles Twitch-Datum, Kanal und ID prüfen und dauerhaft registrieren.
-2. Öffentliche Originaldatei in `clips/<ID>.part` laden und vollständig in `<ID>.mp4` umbenennen.
-3. Tonspur mit FFmpeg extrahieren und mit Faster Whisper (`medium`, CPU/int8) in zeitlich begrenzte Untertitelseiten umsetzen.
-4. Bis zu acht Bildzeitpunkte an beiden Bildrändern mit RapidOCR prüfen. Nur Nachrichten unter erkannten Plattformköpfen mit wiederholter hoher OCR-Bewertung werden als Kandidaten zugelassen.
-5. Lumia wählt den eigenen Titel und optional eine vorhandene Kandidaten-ID. Ein Zitat wird aus dem gespeicherten OCR-Text eingesetzt, nicht frei aus der KI-Antwort übernommen. Ein zusammenhängender Untertitelausschnitt muss den Antwortbezug zeitlich stützen.
-6. OpenCV-Gesichterkennung und das lokale Modell `openai/clip-vit-base-patch32` prüfen Kamera-/Gameplay-/Reaction-Stichproben. Referenzprofile werden in Pixelkoordinaten der Quelle umgerechnet.
-7. FFmpeg rendert jede erkannte Layoutphase mit dem gemeinsamen Clip2Short-Design. Phasen werden zu einer MP4 zusammengesetzt.
-8. Dateiprüfsumme und Sichtbarkeit speichern; erst danach die Lumia-Veröffentlichung auslösen.
+Bestehende Konfigurationen ohne `transport` bleiben auf `command`. Die bisherige JS-Brücke übernimmt dann `resolve`, `editorial` und `publish`. Nach erfolgreicher Prüfung kann der Benutzer im Assistenten auf `native` wechseln. Frühere Befehle werden weder gelöscht noch überschrieben.
 
-Rohbilder und Audioanalyse bleiben lokal. Titel- und Beschreibungs-KI erhalten Textkontext über Lumia. Der eigentliche TikTok-Upload verwendet die fertige lokale MP4.
+## Prozesse und Daten
 
-## Zustand und Wiederaufnahme
+Der Windows-Auftrag startet `pythonw.exe -m clip2short run` im Programmordner. Eine Dateisperre erlaubt nur eine Instanz pro Datenordner. SQLite speichert IDs, Aktivierungsdatum und Zustände. Bei Neustart werden unterbrochene Analyseaufträge wieder aufgenommen; unklare Uploads bleiben gesperrt.
 
-`jobs.sqlite3` speichert den ersten Aktivierungszeitpunkt, bekannte Clip-IDs und den Verarbeitungsstand. Wiederholte Ereignisse führen nicht zu einem zweiten Auftrag.
-
-Nach einem Neustart werden unterbrochene Download-/Analyse-/Renderaufträge wieder in die Warteschlange übernommen. Eine einmal erteilte Upload-Freigabe wird dagegen bei unklarem Ausgang als ungeklärt behandelt und nicht erneut freigegeben. Dadurch wird bei einem Absturz zwischen Übertragung und Bestätigung kein blinder zweiter Beitrag erzeugt.
-
-„An Lumia übergeben“ ist ein Abschluss der lokalen Aktion, keine verifizierte TikTok-Publikationsbestätigung. Die Referenzinstallation wurde beim ersten privaten Test zusätzlich vom Nutzer im Konto kontrolliert.
-
-## Quelldateien
-
-| Datei | Verantwortung |
-|---|---|
-| `clip2short/service.py` | Ablauf, Warteschlange, Wiederaufnahme, Rendern und Upload-Freigabe |
-| `clip2short/lumia.py` | Lokale REST-/WebSocket-/MCP-Anbindung |
-| `lumia/clip2short.js` | In Lumia auszuführender Code für Twitch, KI und TikTok |
-| `clip2short/downloads.py` | Öffentliche Twitch-Datei exakt der Clip-ID auflösen |
-| `clip2short/editorial.py` | OCR-Kandidaten, Titelprompt und belegte Chat-Auswahl |
-| `clip2short/layout.py` | Gesichter, Bildklassifikation und Szenenprofile |
-| `clip_engine/transcribe.py` | Audioextraktion und Untertitelcache |
-| `clip_engine/artwork.py`, `clip_engine/render.py` | Gestaltung, Untertitel und FFmpeg-Export |
-| `clip2short/server.py` | Lokale Statusoberfläche und geschützte Rückmeldungen |
-| `Verwalten.ps1` | Einrichtung, manueller Start/Stopp und Windows-Auftrag |
+`clip2short/lumia.py` enthält die lokale Lumia-Anbindung; `ai.py` die Text-KI; `wizard.py` die Ersteinrichtung; `studio.py` Medien und Designer; `design.py` validierte Vorlagen. `clip_engine` rendert Vorschau und Video. `Installieren.ps1` verwaltet die benötigten Laufzeiten.
