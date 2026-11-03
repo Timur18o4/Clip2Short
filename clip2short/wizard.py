@@ -8,6 +8,7 @@ from types import SimpleNamespace
 from urllib.parse import urlparse
 from .config import load_config,load_secrets,save_config,save_secrets,channel_name
 from .lumia import Lumia
+from .store import now
 
 
 def lumia_url(value):
@@ -62,32 +63,66 @@ def action(service,path,data):
         from .ai import local_url,models
         if not getattr(service,'setup_only',False) and any(j['state'] in ('resolving','queued','downloading','transcribing','analyzing','rendering','uploading','dispatching') for j in service.store.list()):
             raise ValueError('Bitte die laufende Clip-Verarbeitung abschließen lassen, bevor die Integration umgestellt wird.')
+        source = data.get('clip_source', 'lumia')
+        if source not in ('lumia', 'twitch'):
+            raise ValueError('Unbekannte Clip-Quelle.')
+        twitch = None
+        restart = not getattr(service,'setup_only',False) and (
+            source == 'twitch' or source != service.cfg.get('clip_source', 'lumia'))
         connection=getattr(service,'setup_connection',None)
+        if source == 'twitch':
+            from .twitch import Twitch
+            channel = channel_name(data.get('twitch_channel', ''))
+            if not getattr(service,'setup_only',False) and service.cfg['channel'].casefold()!=channel:
+                raise ValueError('Bei einer vorhandenen Installation muss der Twitch-Kanal gleich bleiben.')
+            twitch = {key: str(data.get(key) or service.credentials.get(key, '')).strip()
+                      for key in ('twitch_client_id', 'twitch_client_secret')}
+            if not all(twitch.values()):
+                raise ValueError('Bitte Twitch Client-ID und Client-Secret eingeben.')
+            try:
+                broadcaster = Twitch(*twitch.values()).broadcaster(channel)
+            except ValueError:
+                raise
+            except Exception:
+                raise ValueError('Twitch-Verbindung konnte nicht geprüft werden.') from None
+            connection = {'cfg': service.cfg, 'credentials': service.credentials,
+                          'result': {'channel': channel, 'broadcaster_id': broadcaster}}
         if not connection:raise ValueError('Bitte zuerst die Lumia-Verbindung prüfen.')
         cfg={**service.cfg,'lumia_url':connection['cfg']['lumia_url'],'transport':'native',
              'channel':channel_name(connection['result']['channel']),'broadcaster_id':connection['result'].get('broadcaster_id','')}
         if not getattr(service,'setup_only',False) and service.cfg['channel'].casefold()!=cfg['channel'].casefold():
             raise ValueError('Bei einer vorhandenen Installation darf der Kanal nicht beiläufig gewechselt werden.')
+        cfg['clip_source'] = source
+        if source == 'twitch':
+            cfg['twitch_started_at'] = service.cfg.get('twitch_started_at') if service.cfg.get('clip_source') == 'twitch' else None
+            cfg['twitch_started_at'] = cfg['twitch_started_at'] or now()
         provider=data.get('ai_provider','lumia')
-        if provider not in ('lumia','ollama'):raise ValueError('Unbekannter KI-Anbieter.')
+        if provider not in ('lumia','ollama','none'):raise ValueError('Unbekannter KI-Anbieter.')
+        token = connection['credentials'].get('lumia_token', '')
+        if provider == 'lumia' and not token:
+            raise ValueError('Für Lumia-KI zuerst Lumia verbinden oder eine andere Titelquelle auswählen.')
         cfg['ai_provider']=provider
         if provider=='ollama':
             cfg['ollama_url']=local_url(data.get('ollama_url','http://127.0.0.1:11434'))
             cfg['ollama_model']=str(data.get('ollama_model',''))
             if cfg['ollama_model'] not in models(cfg['ollama_url']):raise ValueError('Bitte ein vorhandenes lokales Modell auswählen.')
-        else:
+        elif provider=='lumia':
             probe=Lumia(connection['cfg'],connection['credentials']).evaluate('{{ai_prompt=Antworte ausschließlich mit CLIP2SHORT_OK.}}',150)
             if probe.strip()!='CLIP2SHORT_OK':raise ValueError('Lumias Text-KI ist noch nicht einsatzbereit. Dort einen Anbieter einrichten oder die lokale KI auswählen.')
         auto=data.get('auto_upload',False)
         if not isinstance(auto,bool):raise ValueError('Ungültige Upload-Auswahl.')
-        cfg['auto_upload']=auto
+        if auto and token and provider == 'none':
+            raise ValueError('Für automatische TikTok-Übergabe Lumia-KI oder Ollama auswählen.')
+        cfg['auto_upload']=auto and bool(token)
         if data.get('privacy') not in ('SELF_ONLY','PUBLIC_TO_EVERYONE'):raise ValueError('Bitte eine Sichtbarkeit auswählen.')
         cfg['privacy']=data['privacy']
-        if data.get('prepare_events',False):
+        if source == 'lumia' and data.get('prepare_events',False):
             Lumia(connection['cfg'],connection['credentials']).prepare_clip_events()
-        credentials=save_secrets(connection['credentials']['lumia_token'],service.root,bridge_key=service.credentials['bridge_key'])
+        credentials=save_secrets(token,service.root,bridge_key=service.credentials['bridge_key'],twitch=twitch)
         save_config(cfg,service.root)
         (getattr(service,'program_root',Path(__file__).resolve().parents[1])/'installation.json').write_text(json.dumps({'data_dir':str(service.root)},ensure_ascii=False),encoding='utf-8')
+        if restart:
+            return {'ok':True,'message':'Gespeichert. Clip2Short einmal neu starten, um die Clip-Quelle zu übernehmen.'}
         service.credentials.update(credentials);service.cfg.update(cfg);service.lumia=Lumia(service.cfg,service.credentials)
         autostart=False;warning=''
         if data.get('autostart',False):
@@ -99,7 +134,7 @@ def action(service,path,data):
         if getattr(service,'setup_only',False):
             service.finished.set()
             threading.Timer(.5,service.http.shutdown).start()
-        return {'ok':True,'message':'Einrichtung gespeichert. Clip2Short verwendet Lumia ohne zusätzlichen Befehl.'+warning,'first_run':getattr(service,'setup_only',False)}
+        return {'ok':True,'message':'Einrichtung gespeichert.'+warning,'first_run':getattr(service,'setup_only',False)}
     raise ValueError('Unbekannter Einrichtungsschritt.')
 
 

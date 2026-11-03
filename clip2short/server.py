@@ -92,6 +92,8 @@ def serve(service):
                 if path=='/api/resolved': self.reply(200,service.resolved(data)); return
                 if path=='/api/claim': self.reply(200,service.claim_upload(data['id'],data['caption'])); return
                 if path=='/api/editorial':self.reply(200,service.accept_editorial(data));return
+                if path=='/api/manual-upload':service.request_manual_upload(data['id']);self.reply(200,{'ok':True});return
+                if path=='/api/manual-preview':service.manual_preview(data);self.reply(200,{'ok':True});return
                 if path=='/api/preview':service.preview(data['id']);self.reply(200,{'ok':True});return
                 if path=='/api/confirm':
                     job=service.store.get(data['id'])

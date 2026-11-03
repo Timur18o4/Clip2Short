@@ -62,10 +62,19 @@ def _dpapi(raw,decrypt=False):
     finally: ctypes.windll.kernel32.LocalFree(out.data)
 
 
-def save_secrets(token,root=None,bridge_key=None):
+def save_secrets(token,root=None,bridge_key=None,*,twitch=None):
     root=Path(root or data_dir()); root.mkdir(parents=True,exist_ok=True)
     value={'lumia_token':token.strip(),'bridge_key':bridge_key or secrets.token_urlsafe(32)}
-    (root/'credentials.dpapi').write_bytes(_dpapi(json.dumps(value).encode()))
+    path = root/'credentials.dpapi'
+    previous = load_secrets(root) if path.exists() else {}
+    for key in ('twitch_client_id', 'twitch_client_secret'):
+        if twitch is not None:
+            value[key] = twitch[key]
+        elif key in previous:
+            value[key] = previous[key]
+    temporary = path.with_suffix('.tmp')
+    temporary.write_bytes(_dpapi(json.dumps(value).encode()))
+    temporary.replace(path)
     return value
 
 

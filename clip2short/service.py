@@ -115,7 +115,7 @@ class Service:
             return
         if not self.store.update_if(ident,'resolving',resolve_attempts=attempts+1,next_resolve=time.time()+max(45,30*2**attempts)): return
         try:
-            if self.cfg.get('transport')=='native':
+            if self.cfg.get('clip_source')=='twitch' or self.cfg.get('transport')=='native':
                 from .downloads import resolve_public
                 self.resolved(resolve_public(ident,self.cfg['channel'],self.store.armed_at,self.cfg.get('broadcaster_id')))
                 self.log('Neuer Twitch-Clip direkt geprüft: '+ident)
@@ -128,7 +128,8 @@ class Service:
 
     def dispatch(self,ident):
         job=self.store.get(ident)
-        if not job or job['state']!='ready' or not self.cfg.get('enabled') or not self.cfg.get('auto_upload'): return
+        if not self.credentials.get('lumia_token'): return
+        if not job or job['state']!='ready' or not self.cfg.get('enabled') or not (self.cfg.get('auto_upload') or job.get('manual_upload_requested')): return
         attempts=job.get('dispatch_attempts',0)
         if attempts>=3: return
         # Repeating this command cannot publish twice: /api/claim is atomic and single-use.
@@ -139,6 +140,11 @@ class Service:
         except Exception: self.log('Lumia-Aufruf unbestätigt. Der Upload bleibt durch die einmalige Freigabe geschützt.')
 
     def check_connection(self):
+        if self.cfg.get('clip_source') == 'twitch':
+            from .twitch import Twitch
+            client = Twitch(self.credentials['twitch_client_id'], self.credentials['twitch_client_secret'])
+            client.broadcaster(self.cfg['channel'])
+            return {'message': 'Twitch-Direkterkennung erreichbar.'}
         if self.cfg.get('transport')=='native':
             result=self.lumia.probe_native()
             if result['channel'].casefold()!=self.cfg['channel'].casefold():raise ValueError('Der Twitch-Kanal in Lumia stimmt nicht mit Clip2Short überein.')
@@ -180,12 +186,13 @@ class Service:
                 except Exception: self.log('Ein Warteschritt wurde unterbrochen; erneute Prüfung folgt.')
 
     def retry(self,ident):
-        job=self.store.get(ident)
-        if not job or job['state'] not in ('error','review','ready'): raise ValueError('Dieser Zustand kann nicht erneut gestartet werden.')
-        if job['state']=='ready':
-            self.store.update_if(ident,'ready',dispatch_attempts=0,next_dispatch=0,error='');return
-        with self.guard: self.resolving[ident]=0
-        self.store.put(ident,'resolving',resolve_attempts=0,next_resolve=0,error='')
+        with self.guard:
+            job=self.store.get(ident)
+            if not job or job.get('preview_rendering') or job['state'] not in ('error','review','ready'): raise ValueError('Dieser Zustand kann nicht erneut gestartet werden.')
+            if job['state']=='ready':
+                self.store.update_if(ident,'ready',dispatch_attempts=0,next_dispatch=0,error='');return
+            self.resolving[ident]=0
+            self.store.put(ident,'resolving',resolve_attempts=0,next_resolve=0,error='')
 
     def diagnostic(self,payload):
         (self.root/'diagnostic.json').write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding='utf-8')
@@ -200,6 +207,11 @@ class Service:
         self.log('Lumia-Diagnose: '+str(payload.get('message',''))[:300])
 
     def prepare_editorial(self,ident,source,metadata,pages,preview=False):
+        if self.cfg.get('ai_provider') == 'none':
+            job = self.store.get(ident)
+            editorial = {'title': job['clip'].get('title') or job['category'], 'chat_quote': ''}
+            self.store.update_fields(ident, **{('preview_' if preview else '')+'editorial': editorial})
+            return editorial
         from .editorial import chat_candidates
         prefix='preview_' if preview else ''
         job=self.store.get(ident)
@@ -266,6 +278,85 @@ class Service:
     def preview(self,ident):
         with self.guard:self._preview(ident)
 
+    def request_manual_upload(self, ident):
+        with self.guard:
+            if not self.credentials.get('lumia_token'):
+                raise ValueError('Für die automatische Übergabe zuerst Lumia verbinden.')
+            job = self.store.get(ident)
+            if not job or job['state'] != 'review' or job.get('preview_rendering'):
+                raise ValueError('Dieser manuelle Export kann gerade nicht übergeben werden.')
+            if not self.cfg.get('enabled'):
+                raise ValueError('Dienst ist angehalten.')
+            eligible, reason = self.store.eligible(job['clip'], self.cfg['channel'])
+            if not eligible:
+                raise ValueError(reason)
+            output = self.root / 'renders' / f'{ident}-manual.mp4'
+            if job.get('preview_output') != str(output) or not output.is_file():
+                raise ValueError('Bitte zuerst einen manuellen Export erstellen.')
+            pages = (job.get('editorial_context') or {}).get('pages', [])
+            transcript = job.get('manual_transcript', job.get('transcript') or ' '.join(p['text'] for p in pages))
+            self.store.update_if(
+                ident, 'review', 'ready', output=str(output),
+                sha256=hashlib.sha256(output.read_bytes()).hexdigest(),
+                privacy=self.cfg['privacy'], transcript=transcript,
+                scenes=job.get('manual_scenes', []),
+                manual_upload_requested=True, dispatch_attempts=0, next_dispatch=0, error='',
+            )
+
+    def manual_preview(self, data):
+        from .studio import source_path, profiles
+        from .design import validate, render_design
+        from .layout import pixel_crop
+        from clip_engine.media import probe_media
+        from clip_engine.transcribe import transcribe_project
+
+        ident = data['id']
+        mode = data['mode']
+        cfg = dict(self.cfg)
+        crops = profiles(data['profiles'], cfg['profiles']).get(mode)
+        if crops is None:
+            raise ValueError('Unbekanntes Bildprofil.')
+        design = render_design({'design': validate(data['design'])}, self.root)
+        with self.guard:
+            job = self.store.get(ident)
+            if not job or job['state'] != 'review' or job.get('preview_rendering'):
+                raise ValueError('Der manuelle Export ist nur für angehaltene Clips verfügbar.')
+            source = source_path(self, 'job:' + ident)
+            self.store.update_fields(ident, preview_rendering=True, preview_error='')
+
+        def run():
+            try:
+                metadata = probe_media(source)
+                output = self.root / 'renders' / f'{ident}-manual.mp4'
+                editorial = job.get('editorial') or {}
+                project = {
+                    'source': str(source), 'output': str(output), 'design': design,
+                    'brand': str(data.get('brand', cfg['brand']))[:100],
+                    'channel': cfg['channel'].upper(), 'accent': '#ffd13f',
+                    'fps': cfg['fps'], 'normalize_audio': True,
+                    'transcription_model': cfg['model'],
+                    'segments': [{'start': 0, 'end': metadata['duration']}],
+                    'title': editorial.get('title') or job['clip'].get('title') or job['category'],
+                    'chat_quote': editorial.get('chat_quote', ''), 'label': job['category'].upper(),
+                }
+                pages = (job.get('editorial_context') or {}).get('pages')
+                if pages is None:
+                    pages = transcribe_project(project, lambda *_: None, self.stop)
+                project['captions'] = pages
+                scene = {'name': mode, 'start': 0, 'end': metadata['duration'],
+                         'crops': {part: pixel_crop(rect, metadata['width'], metadata['height'])
+                                   for part, rect in crops.items()}}
+                self.render_output(project, [scene], metadata, output)
+                self.store.update_fields(ident, preview_output=str(output), preview_rendering=False,
+                                         manual_transcript=' '.join(page['text'] for page in pages),
+                                         manual_captions=pages, manual_scenes=[scene])
+            except Exception as exc:
+                self.store.update_fields(ident, preview_error=str(exc), preview_rendering=False)
+
+        thread = threading.Thread(target=run, daemon=True)
+        self.threads.append(thread)
+        thread.start()
+
     def _preview(self,ident):
         from clip_engine.media import probe_media
         job=self.store.get(ident)
@@ -289,7 +380,12 @@ class Service:
                 self.store.update_fields(ident,preview_rendering=False,preview_error=str(exc));self.log('KI-Vorschau: '+str(exc))
         t=threading.Thread(target=run,daemon=True);self.threads.append(t);t.start()
 
-    def listen(self): self.lumia.events(self.stop,self.on_event,self.log)
+    def listen(self):
+        if self.cfg.get('clip_source') == 'twitch':
+            from .twitch import listen
+            listen(self)
+        else:
+            self.lumia.events(self.stop,self.on_event,self.log)
 
     def on_event(self,event):
         if not self.cfg.get('enabled'): return

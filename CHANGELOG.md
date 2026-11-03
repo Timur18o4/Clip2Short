@@ -1,5 +1,12 @@
 # Änderungen
 
+## 0.3.0
+
+- Direkte Twitch-Erkennung über Helix im 30-Sekunden-Takt. Die Einrichtung kann ohne Lumia abgeschlossen werden.
+- Lokaler Export mit Originaltitel oder Ollama. Die Uploadhilfe öffnet TikTok Studio und stellt Titel, Dateipfad sowie Beschreibung zum Kopieren bereit.
+- Angehaltene Clips lassen sich mit einem manuell gewählten Ausschnitt lokal rendern und bei vorhandenem Lumia auf Wunsch übergeben.
+
+
 ## 0.2.2 — 2026-11-03
 
 - Unsichere Bildklassifikationen verwenden benachbarte verlässliche Szenen statt einen unbelegten Wechsel zum Reaction-Profil auszulösen.
