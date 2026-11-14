@@ -1,5 +1,9 @@
 # Änderungen
 
+## 1.0.3
+
+- Eigenes Clip2Short-Symbol für den Windows-Infobereich.
+
 ## 1.0.2
 
 - Windows-Tray-Icon mit aktuellem Status, Doppelklick zur Weboberfläche und Menü zum Öffnen oder Beenden.

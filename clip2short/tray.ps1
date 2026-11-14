@@ -18,7 +18,8 @@ $client.Encoding = [Text.Encoding]::UTF8
 $client.Headers['Authorization'] = 'Bearer ' + $token
 $context = New-Object Windows.Forms.ApplicationContext
 $icon = New-Object Windows.Forms.NotifyIcon
-$icon.Icon = [Drawing.SystemIcons]::Application
+$artwork = [Drawing.Icon]::new((Join-Path $PSScriptRoot 'tray.ico'), [Windows.Forms.SystemInformation]::SmallIconSize)
+$icon.Icon = $artwork
 $menu = New-Object Windows.Forms.ContextMenuStrip
 $open = $menu.Items.Add('Weboberfläche öffnen')
 $stop = $menu.Items.Add('Dienst beenden')
@@ -64,6 +65,7 @@ try {
     $timer.Dispose()
     $icon.Visible = $false
     $icon.Dispose()
+    $artwork.Dispose()
     $menu.Dispose()
     $client.Dispose()
     $reader.Dispose()

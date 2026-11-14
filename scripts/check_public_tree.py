@@ -19,6 +19,7 @@ PATTERNS={
     'Privater Schlüssel':re.compile(r'-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----'),
     'Persönlicher Windows-Pfad':re.compile(r'[A-Za-z]:[/\\]+Users[/\\]+[A-Za-z0-9_.-]+',re.I),
 }
+TRAY_ICON='clip2short/tray.ico'
 
 
 def files_for_release(root=ROOT):
@@ -44,6 +45,10 @@ def validate_files(root,files):
             problems.append(name+': private Laufzeitdatei oder nicht vorgesehener Dateityp');continue
         if relative.parts[0] not in DIRECTORIES and name not in ROOT_FILES:
             problems.append(name+': Datei steht nicht in der Veröffentlichungsauswahl');continue
+        if name == TRAY_ICON:
+            if not path.read_bytes().startswith(b'\x00\x00\x01\x00'):
+                problems.append(name+': ungültiges Windows-Icon')
+            continue
         try:content=path.read_text(encoding='utf8')
         except (UnicodeError,OSError):problems.append(name+': nicht lesbare Textdatei');continue
         for label,pattern in PATTERNS.items():
