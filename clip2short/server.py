@@ -30,6 +30,9 @@ def serve(service):
                 self.reply(200,html,'text/html; charset=utf-8'); return
             if path=='/health': self.reply(200,{'ok':True,'armed_at':service.store.armed_at,'channel':service.cfg['channel']}); return
             if not self.authorized(): self.reply(401,{'error':'Nicht autorisiert.'}); return
+            if path=='/api/tray':
+                prefix = '' if service.cfg['enabled'] else 'Angehalten · '
+                self.reply(200, {'status': prefix + service.status}); return
             if path=='/api/setup/progress':self.reply(200,getattr(service,'setup_progress',{'status':'idle'}));return
             if path.startswith('/api/studio'):
                 try:
@@ -137,5 +140,15 @@ def serve(service):
             except Exception as exc: self.reply(400,{'error':str(exc)})
     http=ThreadingHTTPServer(('127.0.0.1',service.cfg['port']),Handler)
     service.http=http
-    try: http.serve_forever(poll_interval=.5)
-    finally: http.server_close()
+    from . import tray
+    icon = None
+    try:
+        if not getattr(service,'setup_only',False):
+            try:
+                icon = tray.start(service, http)
+            except OSError:
+                service.log('Windows-Tray konnte nicht gestartet werden.')
+        http.serve_forever(poll_interval=.5)
+    finally:
+        http.server_close()
+        tray.close(icon)

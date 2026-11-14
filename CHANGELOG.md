@@ -1,5 +1,9 @@
 # Änderungen
 
+## 1.0.2
+
+- Windows-Tray-Icon mit aktuellem Status, Doppelklick zur Weboberfläche und Menü zum Öffnen oder Beenden.
+
 ## 1.0.1
 
 - Frei editierbarer Anzeigename in der Video-Fußzeile. Als Standard dient der eingerichtete Twitch-Name.
