@@ -11,6 +11,7 @@ from .captions import prompt
 
 def serve(service):
     ui_key=secrets.token_urlsafe(32)
+    version = (Path(__file__).resolve().parents[1]/'VERSION').read_text().strip()
     class Handler(BaseHTTPRequestHandler):
         def log_message(self,*args): pass
         def reply(self,code,value,content='application/json; charset=utf-8'):
@@ -28,11 +29,16 @@ def serve(service):
                 name='studio.html' if path in ('/studio','/setup') or getattr(service,'setup_only',False) else 'dashboard.html'
                 html=(Path(__file__).parent/name).read_text(encoding='utf-8').replace('__UI_KEY__',ui_key).replace('__SETUP_MODE__','true' if path=='/setup' or getattr(service,'setup_only',False) else 'false')
                 self.reply(200,html,'text/html; charset=utf-8'); return
-            if path=='/health': self.reply(200,{'ok':True,'armed_at':service.store.armed_at,'channel':service.cfg['channel']}); return
+            if path=='/health': self.reply(200,{'ok':True,'armed_at':service.store.armed_at,'channel':service.cfg['channel'],'version':version}); return
+            if path=='/tutorial':
+                self.reply(200, (Path(__file__).parent/'tutorial.html').read_text(encoding='utf-8'), 'text/html; charset=utf-8')
+                return
             if not self.authorized(): self.reply(401,{'error':'Nicht autorisiert.'}); return
             if path=='/api/tray':
                 prefix = '' if service.cfg['enabled'] else 'Angehalten · '
                 self.reply(200, {'status': prefix + service.status}); return
+            if path=='/api/update':
+                self.reply(200, {'version':version,'status':getattr(service,'update_status','')}); return
             if path=='/api/setup/progress':self.reply(200,getattr(service,'setup_progress',{'status':'idle'}));return
             if path.startswith('/api/studio'):
                 try:
@@ -74,6 +80,13 @@ def serve(service):
             try:
                 length=int(self.headers.get('Content-Length',0))
                 path=urlparse(self.path).path
+                if path=='/api/import':
+                    if getattr(service,'setup_only',False): raise ValueError('Bitte zuerst die Einrichtung abschließen.')
+                    if not 0<length<=512*1024*1024: raise ValueError('Die Videodatei muss zwischen 1 Byte und 512 MB groß sein.')
+                    from .studio import import_clip
+                    category=parse_qs(urlparse(self.path).query).get('category',[''])[0]
+                    self.reply(200,import_clip(service,self.rfile,length,self.headers.get('X-File-Name',''),category))
+                    return
                 if path in ('/api/studio/background','/api/studio/reference'):
                     limit=12*1024*1024 if path.endswith('background') else 512*1024*1024
                     if not 0<length<=limit:raise ValueError('Datei ist zu groß oder leer.')
@@ -81,6 +94,9 @@ def serve(service):
                     self.reply(200,studio.background(service,self.rfile.read(length)) if path.endswith('background') else studio.upload_reference(service,self.rfile,length,self.headers.get('X-File-Name','')));return
                 if not 0<length<=262144: raise ValueError('Ungültige Nutzlastgröße.')
                 data=json.loads(self.rfile.read(length)); path=urlparse(self.path).path
+                if getattr(service,'setup_restart_pending',False) and path in (
+                        '/api/setup/finish','/api/studio/save','/api/settings'):
+                    raise ValueError('Einstellungen gespeichert. Bitte Clip2Short zuerst neu starten.')
                 if path.startswith('/api/setup/'):
                     from .wizard import action
                     self.reply(200,action(service,path,data));return
@@ -113,10 +129,15 @@ def serve(service):
                 if path=='/api/diagnostic':
                     service.diagnostic(data); self.reply(200,{'ok':True}); return
                 if path=='/api/retry': service.retry(data['id']); self.reply(200,{'ok':True}); return
+                if path=='/api/remove': service.remove(data['id']); self.reply(200,{'ok':True}); return
+                if path=='/api/update':
+                    from .updater import request_check
+                    request_check(service, manual=True)
+                    self.reply(200, {'ok':True}); return
                 if path=='/api/settings':
                     from .config import save_config
                     cfg=copy.deepcopy(service.cfg)
-                    for key in ('enabled','auto_upload','vision','require_face'):
+                    for key in ('enabled','auto_upload','vision','require_face','auto_update'):
                         if key in data:
                             if not isinstance(data[key],bool): raise ValueError('Schalter benötigt true oder false.')
                             cfg[key]=data[key]

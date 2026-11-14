@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="de">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Clip2Short einrichten</title>
+<style>
+body{margin:0;background:#101015;color:#f2edf8;font:17px/1.6 system-ui}
+main{max-width:760px;margin:0 auto;padding:36px 24px 64px}
+h1{color:#ffdf38;font-size:clamp(2rem,7vw,3.2rem);line-height:1.1}
+h2{line-height:1.2}a{color:#d8b7ff}section{background:#211930;border:1px solid #493564;border-radius:12px;padding:4px 22px 14px;margin:18px 0}
+</style>
+<main>
+<nav><a href="/setup">Einrichtung öffnen</a> · <a href="/">Zur Verarbeitungsliste</a></nav>
+<h1>Dein erster Clip mit Clip2Short</h1>
+<section>
+<h2>1. Installation und Clip-Quelle</h2>
+<p>Entpacke das Windows-ZIP in einen dauerhaften Ordner und starte <strong>EINRICHTEN.cmd</strong>. Danach öffnet sich die Einrichtung im Browser.</p>
+<ul>
+<li><strong>Über Lumia</strong> · Verbinde Twitch in Lumia, aktiviere dort die lokale API und trage den Lumia-Token in Clip2Short ein. Klicke auf <strong>Lumia verbinden &amp; prüfen</strong>.</li>
+<li><strong>Direkt über Twitch</strong> · Registriere eine eigene App in der <a href="https://dev.twitch.tv/console/apps">Twitch Developer Console</a>. Trage Kanal, Client-ID und Client-Secret ein. Clip2Short fragt Twitch dann ungefähr alle 30 Sekunden nach neuen Clips ab.</li>
+<li><strong>Nur lokale Dateien</strong> · Wähle diese Option, wenn du Videos vom PC verarbeiten möchtest. Du kannst Originaltitel oder Ollama verwenden.</li>
+</ul>
+<p>Für KI-Titel kannst du Lumia oder ein vorhandenes lokales Ollama-Modell wählen. Mit <strong>Originaltitel</strong> ist keine Text-KI nötig. Voraussetzung für die automatische Übergabe an TikTok ist ein in Lumia verbundenes TikTok-Konto. Für den ersten Test lass die automatische Übergabe ausgeschaltet.</p>
+</section>
+<section>
+<h2>2. Bildausschnitt und Design prüfen</h2>
+<p>Lade im <a href="/studio">Editor</a> einen Beispielclip und wähle <strong>Just Chatting</strong>, <strong>Gameplay</strong> oder <strong>Desktop / Reaction</strong>. Im Original markierst du Hauptbild und gegebenenfalls Webcam. In der Hochkantansicht platzierst du die Bildbereiche und Texte. Mit <strong>Vorschau aktualisieren</strong> siehst du den Ausschnitt. Speichere passende Bildprofile und dein Design.</p>
+</section>
+<section>
+<h2>3. Einen Clip exportieren</h2>
+<p>Schließe die Einrichtung ab. Wenn beim Ändern der Clip-Quelle ein Neustart verlangt wird, beende den Dienst und starte ihn mit <strong>STARTEN.cmd</strong>. Erstelle danach einen neuen Twitch-Clip oder wähle in der <a href="/">Verarbeitungsliste</a> unter <strong>Lokalen Clip hinzufügen</strong> eine MP4 und die passende Kategorie.</p>
+<p>Bei <strong>Bildprofil prüfen</strong> kannst du <strong>Ausschnitt manuell wählen</strong> und den Clip mit dem sichtbaren Rahmen lokal rendern. Mit <strong>TikTok-Upload vorbereiten</strong> öffnest du TikTok Studio und kannst Dateipfad und Beschreibung kopieren.</p>
+</section>
+</main>
+</html>

@@ -4,12 +4,18 @@ Windows-Hintergrunddienst für **neue Twitch-Clips → Hochkantvideo → Unterti
 
 [![Tests](https://github.com/Timur18o4/Clip2Short/actions/workflows/tests.yml/badge.svg)](https://github.com/Timur18o4/Clip2Short/actions/workflows/tests.yml)
 
-**v1.0.3** Neue Installationen benötigen keinen zusätzlichen Lumia-Befehl. Ersteinrichtung und Ausschnitteditor laufen im Browser auf dem eigenen PC.
+**v1.1.0** Neue Installationen benötigen keinen zusätzlichen Lumia-Befehl. Ersteinrichtung und Ausschnitteditor laufen im Browser auf dem eigenen PC.
 
 
 Für den Betrieb ohne Lumia unter **Einrichtung & KI-Auswahl** die Clip-Quelle **Direkt über Twitch** wählen. Twitch-Kanal, Client-ID und Client-Secret einer eigenen [Twitch-App](https://dev.twitch.tv/console/apps) eingeben. Die Zugangsdaten werden lokal verschlüsselt gespeichert. Für Titel stehen der Originaltitel und Ollama zur Wahl. Bei einer bestehenden Installation Clip2Short nach dem Speichern einmal neu starten. Die direkte Erkennung berücksichtigt neue Clips ab ihrer Aktivierung und fragt Twitch alle 30 Sekunden ab. Fertige MP4s lassen sich über **TikTok-Upload vorbereiten** in TikTok Studio weiterverwenden.
 
 Unter Windows zeigt Clip2Short im Infobereich den aktuellen Dienststatus. Doppelklick öffnet die Weboberfläche. Per Rechtsklick kannst du sie ebenfalls öffnen oder den Dienst beenden.
+
+Das **Einrichtungstutorial** ist im Setup und in der Verarbeitungsliste verlinkt. Mit **Nur lokale Dateien** lässt sich Clip2Short ohne Twitch- oder Lumia-Verbindung einrichten.
+
+- **Lokalen Clip hinzufügen** übernimmt MP4-Dateien bis 3 Minuten und 512 MB in die Verarbeitung. Das fertige Video steht lokal zum Speichern und für die TikTok-Uploadhilfe bereit.
+- **Entfernen** blendet einen Auftrag dauerhaft aus. Vorhandene Dateien bleiben gespeichert, und ein entfernter Twitch-Clip wird bei einer erneuten Meldung übersprungen.
+- **Updates** prüft automatisch auf neue reguläre GitHub-Versionen. Clip2Short prüft die SHA-256-Prüfsumme, wartet auf laufende Verarbeitung und startet nach dem Austausch der Programmdateien neu. Unter **Updates** lässt sich die Funktion ausschalten oder manuell auslösen. Releases mit geänderten Abhängigkeiten werden über das Windows-Paket eingerichtet.
 
 ## Funktionen
 

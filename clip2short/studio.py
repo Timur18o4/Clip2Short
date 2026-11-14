@@ -10,7 +10,7 @@ from pathlib import Path
 from urllib.parse import unquote
 from PIL import Image,ImageOps
 from .design import PRESETS,validate,rect,render_design
-from .config import save_config, footer_name
+from .config import load_config, save_config, footer_name
 
 
 def state(service):
@@ -21,14 +21,17 @@ def state(service):
         title='Eigenes Beispiel · '+path.stem[:6]
         if path.with_suffix('.json').exists():title=json.loads(path.with_suffix('.json').read_text(encoding='utf-8')).get('title',title)
         sources.append({'id':'reference:'+path.stem,'title':title})
-    return {'config':service.cfg,'presets':PRESETS,'sources':sources}
+    pending = getattr(service, 'setup_restart_pending', False)
+    return {'config':load_config(service.root) if pending else service.cfg,
+            'presets':PRESETS,'sources':sources,'restart_required':pending}
 
 
 def source_path(service,value):
     value=str(value)
     if value.startswith('job:'):
         ident=value[4:]
-        if not re.fullmatch('[A-Za-z0-9_-]{8,200}',ident) or not service.store.get(ident):raise ValueError('Clip nicht gefunden.')
+        job = service.store.get(ident) if re.fullmatch('[A-Za-z0-9_-]{8,200}',ident) else None
+        if not job or job['state']=='removed':raise ValueError('Clip nicht gefunden.')
         path=service.root/'clips'/(ident+'.mp4')
     elif value.startswith('reference:') and re.fullmatch('[a-f0-9]{32}',value[10:]):
         path=service.root/'references'/(value[10:]+'.mp4')
@@ -56,21 +59,59 @@ def background(service,raw):
 
 
 def upload_reference(service,reader,length,name=''):
+    folder=service.root/'references'
+    ident=uuid.uuid4().hex
+    path=folder/(ident+'.mp4')
+    metadata=receive_video(path,reader,length,600)
+    path.with_suffix('.json').write_text(json.dumps({'title':unquote(str(name))[:200] or 'Eigenes Beispiel'},ensure_ascii=False),encoding='utf-8')
+    return {'id':'reference:'+ident,'metadata':{k:metadata[k] for k in ('width','height','duration')}}
+
+
+def receive_video(path, reader, length, max_duration, *, mp4_only=False):
     from clip_engine.media import probe_media
-    folder=service.root/'references';folder.mkdir(exist_ok=True);ident=uuid.uuid4().hex;path=folder/(ident+'.mp4')
+    path.parent.mkdir(exist_ok=True)
     try:
         with path.open('wb') as out:
             remaining=length
+            if mp4_only:
+                header = reader.read(min(12, length))
+                if len(header) < 12 or header[4:8] != b'ftyp':
+                    raise ValueError('Bitte ein MP4-Video auswählen.')
+                out.write(header)
+                remaining -= len(header)
             while remaining:
                 chunk=reader.read(min(1024*1024,remaining))
                 if not chunk:raise ValueError('Videoübertragung wurde unterbrochen.')
                 out.write(chunk);remaining-=len(chunk)
         metadata=probe_media(path)
-        if metadata['duration']>600:raise ValueError('Der Beispielclip darf höchstens zehn Minuten lang sein.')
-        path.with_suffix('.json').write_text(json.dumps({'title':unquote(str(name))[:200] or 'Eigenes Beispiel'},ensure_ascii=False),encoding='utf-8')
-        return {'id':'reference:'+ident,'metadata':{k:metadata[k] for k in ('width','height','duration')}}
+        if not 0 < metadata['duration'] <= max_duration:
+            raise ValueError(f'Das Video darf höchstens {max_duration} Sekunden lang sein.')
+        return metadata
     except Exception:
         path.unlink(missing_ok=True);raise
+
+
+def import_clip(service, reader, length, name, category):
+    from .store import now
+    category = category.strip()
+    if not category or len(category) > 100:
+        raise ValueError('Bitte eine Kategorie mit maximal 100 Zeichen eingeben.')
+    title = Path(unquote(name)).stem.strip()[:200] or 'Lokaler Clip'
+    ident = 'Local-' + uuid.uuid4().hex
+    path = service.root/'clips'/f'{ident}.mp4'
+    metadata = receive_video(path, reader, length, 180, mp4_only=True)
+    try:
+        with service.guard:
+            if service.stop.is_set():
+                raise ValueError('Clip2Short wird gerade beendet. Bitte erneut versuchen.')
+            clip = {'id':ident,'title':title,'created_at':now(),'duration':metadata['duration'],
+                    'broadcaster_name':service.cfg['channel']}
+            service.store.put(ident,'queued',clip=clip,category=category,local_import=True)
+            service.work.put(ident)
+    except Exception:
+        path.unlink(missing_ok=True)
+        raise
+    return {'id':ident}
 
 
 def profiles(value,existing):

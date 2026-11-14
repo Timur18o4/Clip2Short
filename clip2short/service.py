@@ -100,7 +100,13 @@ class Service:
         with (self.root/'service.log').open('a',encoding='utf-8') as f: f.write(now()+' '+message+'\n')
 
     def start(self):
-        for target in (self.listen,self.worker,self.supervise):
+        targets = [self.listen, self.worker, self.supervise]
+        if os.name == 'nt':
+            from .updater import loop
+            def watch_updates():
+                loop(self)
+            targets.append(watch_updates)
+        for target in targets:
             t=threading.Thread(target=target,daemon=True); t.start(); self.threads.append(t)
         for job in self.store.list(10000):
             if job['state']=='queued': self.work.put(job['id'])
@@ -128,6 +134,7 @@ class Service:
 
     def dispatch(self,ident):
         job=self.store.get(ident)
+        if job and job.get('local_import'): return
         if not self.credentials.get('lumia_token'): return
         if not job or job['state']!='ready' or not self.cfg.get('enabled') or not (self.cfg.get('auto_upload') or job.get('manual_upload_requested')): return
         attempts=job.get('dispatch_attempts',0)
@@ -140,6 +147,8 @@ class Service:
         except Exception: self.log('Lumia-Aufruf unbestätigt. Der Upload bleibt durch die einmalige Freigabe geschützt.')
 
     def check_connection(self):
+        if self.cfg.get('clip_source') == 'local':
+            return {'message':'Lokaler Dateiimport aktiv.'}
         if self.cfg.get('clip_source') == 'twitch':
             from .twitch import Twitch
             client = Twitch(self.credentials['twitch_client_id'], self.credentials['twitch_client_secret'])
@@ -189,10 +198,26 @@ class Service:
         with self.guard:
             job=self.store.get(ident)
             if not job or job.get('preview_rendering') or job['state'] not in ('error','review','ready'): raise ValueError('Dieser Zustand kann nicht erneut gestartet werden.')
+            if job.get('local_import'):
+                self.store.update_if(ident,job['state'],'queued',error='')
+                self.work.put(ident)
+                return
             if job['state']=='ready':
                 self.store.update_if(ident,'ready',dispatch_attempts=0,next_dispatch=0,error='');return
             self.resolving[ident]=0
             self.store.put(ident,'resolving',resolve_attempts=0,next_resolve=0,error='')
+
+    def remove(self, ident):
+        with self.guard, self.store.lock:
+            job = self.store.get(ident)
+            if not job or job['state'] == 'removed':
+                raise ValueError('Clip wurde bereits entfernt.')
+            if job.get('preview_rendering') or job['state'] in (
+                'downloading', 'transcribing', 'analyzing', 'rendering', 'uploading', 'dispatching',
+            ):
+                raise ValueError('Bitte warte, bis die laufende Verarbeitung beendet ist.')
+            self.store.update_if(ident, job['state'], 'removed')
+            self.resolving.pop(ident, None)
 
     def diagnostic(self,payload):
         (self.root/'diagnostic.json').write_text(json.dumps(payload,ensure_ascii=False,indent=2),encoding='utf-8')
@@ -207,8 +232,10 @@ class Service:
         self.log('Lumia-Diagnose: '+str(payload.get('message',''))[:300])
 
     def prepare_editorial(self,ident,source,metadata,pages,preview=False):
-        if self.cfg.get('ai_provider') == 'none':
-            job = self.store.get(ident)
+        job = self.store.get(ident)
+        if self.cfg.get('ai_provider') == 'none' or (
+            job.get('local_import') and self.cfg.get('ai_provider') != 'ollama'
+        ):
             editorial = {'title': job['clip'].get('title') or job['category'], 'chat_quote': ''}
             self.store.update_fields(ident, **{('preview_' if preview else '')+'editorial': editorial})
             return editorial
@@ -283,6 +310,8 @@ class Service:
             if not self.credentials.get('lumia_token'):
                 raise ValueError('Für die automatische Übergabe zuerst Lumia verbinden.')
             job = self.store.get(ident)
+            if job and job.get('local_import'):
+                raise ValueError('Für lokale Clips bitte die TikTok-Uploadhilfe verwenden.')
             if not job or job['state'] != 'review' or job.get('preview_rendering'):
                 raise ValueError('Dieser manuelle Export kann gerade nicht übergeben werden.')
             if not self.cfg.get('enabled'):
@@ -381,7 +410,9 @@ class Service:
         t=threading.Thread(target=run,daemon=True);self.threads.append(t);t.start()
 
     def listen(self):
-        if self.cfg.get('clip_source') == 'twitch':
+        if self.cfg.get('clip_source') == 'local':
+            self.log('Bereit · lokale Videodatei hinzufügen.')
+        elif self.cfg.get('clip_source') == 'twitch':
             from .twitch import listen
             listen(self)
         else:
@@ -434,9 +465,11 @@ class Service:
         job=self.store.get(ident)
         if not job or job['state']!='queued': return
         ok,reason=self.store.eligible(job['clip'],self.cfg['channel'])
-        if not ok: self.store.put(ident,'ignored',error=reason); return
+        if not ok and not job.get('local_import'): self.store.update_if(ident,'queued','ignored',error=reason); return
         source=self.root/'clips'/f'{ident}.mp4'; output=self.root/'renders'/f'{ident}.mp4'
-        self.store.put(ident,'downloading'); self.log('Neuer Clip wird geladen: '+ident)
+        with self.store.lock:
+            if self.stop.is_set() or not self.store.update_if(ident,'queued','downloading'): return
+        self.log('Neuer Clip wird geladen: '+ident)
         if not source.is_file():
             from .downloads import public_media
             for attempt in range(3):
@@ -487,19 +520,22 @@ class Service:
 
     def public_job(self,ident):
         job=self.store.get(ident)
-        if not job: raise ValueError('Clip nicht gefunden.')
+        if not job or job['state']=='removed': raise ValueError('Clip nicht gefunden.')
         return {k:v for k,v in job.items() if k!='download_url'}
 
     def claim_upload(self,ident,caption):
         job=self.store.get(ident)
         if not job: raise ValueError('Clip nicht gefunden.')
-        if not self.cfg.get('enabled'): raise ValueError('Dienst ist angehalten.')
+        if job.get('local_import'): raise ValueError('Dieser Export ist für die lokale Verwendung bestimmt.')
+        if self.stop.is_set() or not self.cfg.get('enabled'): raise ValueError('Dienst ist angehalten.')
         ok,reason=self.store.eligible(job['clip'],self.cfg['channel'])
         if not ok: raise ValueError(reason)
         clean=validate_caption(caption,job['category'])
         path=Path(job['output'])
         if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest()!=job['sha256']: raise ValueError('Gerenderte Datei fehlt oder wurde geändert.')
         if job.get('privacy') not in ('SELF_ONLY','PUBLIC_TO_EVERYONE'): raise ValueError('Sichtbarkeit fehlt.')
-        if not self.store.claim(ident): return {'claimed':False,'reason':'bereits übergeben oder nicht bereit'}
+        with self.store.lock:
+            if self.stop.is_set() or not self.store.claim(ident):
+                return {'claimed':False,'reason':'bereits übergeben oder nicht bereit'}
         self.store.put(ident,'uploading',caption=clean)
         return {'claimed':True,'media':str(path),'caption':clean,'privacy':job['privacy']}

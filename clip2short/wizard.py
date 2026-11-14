@@ -64,7 +64,7 @@ def action(service,path,data):
         if not getattr(service,'setup_only',False) and any(j['state'] in ('resolving','queued','downloading','transcribing','analyzing','rendering','uploading','dispatching') for j in service.store.list()):
             raise ValueError('Bitte die laufende Clip-Verarbeitung abschließen lassen, bevor die Integration umgestellt wird.')
         source = data.get('clip_source', 'lumia')
-        if source not in ('lumia', 'twitch'):
+        if source not in ('lumia', 'twitch', 'local'):
             raise ValueError('Unbekannte Clip-Quelle.')
         twitch = None
         restart = not getattr(service,'setup_only',False) and (
@@ -73,7 +73,7 @@ def action(service,path,data):
         if source == 'twitch':
             from .twitch import Twitch
             channel = channel_name(data.get('twitch_channel', ''))
-            if not getattr(service,'setup_only',False) and service.cfg['channel'].casefold()!=channel:
+            if not getattr(service,'setup_only',False) and service.cfg['channel'] and service.cfg['channel'].casefold()!=channel:
                 raise ValueError('Bei einer vorhandenen Installation muss der Twitch-Kanal gleich bleiben.')
             twitch = {key: str(data.get(key) or service.credentials.get(key, '')).strip()
                       for key in ('twitch_client_id', 'twitch_client_secret')}
@@ -87,10 +87,15 @@ def action(service,path,data):
                 raise ValueError('Twitch-Verbindung konnte nicht geprüft werden.') from None
             connection = {'cfg': service.cfg, 'credentials': service.credentials,
                           'result': {'channel': channel, 'broadcaster_id': broadcaster}}
+        if source == 'local':
+            connection = {'cfg':service.cfg, 'credentials':service.credentials,
+                          'result':{'channel':service.cfg['channel'],
+                                    'broadcaster_id':service.cfg.get('broadcaster_id','')}}
         if not connection:raise ValueError('Bitte zuerst die Lumia-Verbindung prüfen.')
         cfg={**service.cfg,'lumia_url':connection['cfg']['lumia_url'],'transport':'native',
-             'channel':channel_name(connection['result']['channel']),'broadcaster_id':connection['result'].get('broadcaster_id','')}
-        if not getattr(service,'setup_only',False) and service.cfg['channel'].casefold()!=cfg['channel'].casefold():
+             'channel':service.cfg['channel'] if source=='local' else channel_name(connection['result']['channel']),
+             'broadcaster_id':connection['result'].get('broadcaster_id','')}
+        if not getattr(service,'setup_only',False) and service.cfg['channel'] and service.cfg['channel'].casefold()!=cfg['channel'].casefold():
             raise ValueError('Bei einer vorhandenen Installation darf der Kanal nicht beiläufig gewechselt werden.')
         cfg['clip_source'] = source
         if source == 'twitch':
@@ -99,7 +104,7 @@ def action(service,path,data):
         provider=data.get('ai_provider','lumia')
         if provider not in ('lumia','ollama','none'):raise ValueError('Unbekannter KI-Anbieter.')
         token = connection['credentials'].get('lumia_token', '')
-        if provider == 'lumia' and not token:
+        if provider == 'lumia' and (not token or source == 'local'):
             raise ValueError('Für Lumia-KI zuerst Lumia verbinden oder eine andere Titelquelle auswählen.')
         cfg['ai_provider']=provider
         if provider=='ollama':
@@ -113,7 +118,7 @@ def action(service,path,data):
         if not isinstance(auto,bool):raise ValueError('Ungültige Upload-Auswahl.')
         if auto and token and provider == 'none':
             raise ValueError('Für automatische TikTok-Übergabe Lumia-KI oder Ollama auswählen.')
-        cfg['auto_upload']=auto and bool(token)
+        cfg['auto_upload']=auto and bool(token) and source != 'local'
         if data.get('privacy') not in ('SELF_ONLY','PUBLIC_TO_EVERYONE'):raise ValueError('Bitte eine Sichtbarkeit auswählen.')
         cfg['privacy']=data['privacy']
         if source == 'lumia' and data.get('prepare_events',False):
@@ -122,7 +127,8 @@ def action(service,path,data):
         save_config(cfg,service.root)
         (getattr(service,'program_root',Path(__file__).resolve().parents[1])/'installation.json').write_text(json.dumps({'data_dir':str(service.root)},ensure_ascii=False),encoding='utf-8')
         if restart:
-            return {'ok':True,'message':'Gespeichert. Clip2Short einmal neu starten, um die Clip-Quelle zu übernehmen.'}
+            service.setup_restart_pending = True
+            return {'ok':True,'restart_required':True,'message':'Gespeichert. Clip2Short einmal neu starten, um die Einstellungen zu übernehmen.'}
         service.credentials.update(credentials);service.cfg.update(cfg);service.lumia=Lumia(service.cfg,service.credentials)
         autostart=False;warning=''
         if data.get('autostart',False):

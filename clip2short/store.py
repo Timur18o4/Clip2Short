@@ -68,7 +68,7 @@ class Store:
             return self.put(ident,'queued',clip=clip,**fields),''
 
     def list(self,limit=100):
-        with self.lock: ids=[r[0] for r in self.db.execute('SELECT id FROM jobs ORDER BY updated DESC LIMIT ?',(limit,))]
+        with self.lock: ids=[r[0] for r in self.db.execute("SELECT id FROM jobs WHERE state!='removed' ORDER BY updated DESC LIMIT ?",(limit,))]
         return [self.get(i) for i in ids]
 
     def update_if(self,ident,expected,state=None,**fields):

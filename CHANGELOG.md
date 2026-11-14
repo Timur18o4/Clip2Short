@@ -1,5 +1,11 @@
 # Änderungen
 
+## 1.1.0
+
+- Einzelne Einträge aus der Verarbeitungsliste entfernen, mit Schutz vor erneutem Einreihen.
+- Automatische Windows-Updates mit Prüfsumme, Neustart nach laufenden Aufträgen und Rückkehr zur alten Version bei Startfehlern.
+- Integriertes Einrichtungstutorial und lokaler MP4-Import ohne Twitch oder Lumia.
+
 ## 1.0.3
 
 - Eigenes Clip2Short-Symbol für den Windows-Infobereich.
