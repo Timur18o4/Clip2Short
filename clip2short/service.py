@@ -134,7 +134,7 @@ class Service:
 
     def dispatch(self,ident):
         job=self.store.get(ident)
-        if job and job.get('local_import'): return
+        if job and (job.get('local_import') or job.get('twitch_import')): return
         if not self.credentials.get('lumia_token'): return
         if not job or job['state']!='ready' or not self.cfg.get('enabled') or not (self.cfg.get('auto_upload') or job.get('manual_upload_requested')): return
         attempts=job.get('dispatch_attempts',0)
@@ -198,7 +198,7 @@ class Service:
         with self.guard:
             job=self.store.get(ident)
             if not job or job.get('preview_rendering') or job['state'] not in ('error','review','ready'): raise ValueError('Dieser Zustand kann nicht erneut gestartet werden.')
-            if job.get('local_import'):
+            if job.get('local_import') or job.get('twitch_import'):
                 self.store.update_if(ident,job['state'],'queued',error='')
                 self.work.put(ident)
                 return
@@ -234,7 +234,7 @@ class Service:
     def prepare_editorial(self,ident,source,metadata,pages,preview=False):
         job = self.store.get(ident)
         if self.cfg.get('ai_provider') == 'none' or (
-            job.get('local_import') and self.cfg.get('ai_provider') != 'ollama'
+            (job.get('local_import') or job.get('twitch_import')) and self.cfg.get('ai_provider') != 'ollama'
         ):
             editorial = {'title': job['clip'].get('title') or job['category'], 'chat_quote': ''}
             self.store.update_fields(ident, **{('preview_' if preview else '')+'editorial': editorial})
@@ -310,8 +310,8 @@ class Service:
             if not self.credentials.get('lumia_token'):
                 raise ValueError('Für die automatische Übergabe zuerst Lumia verbinden.')
             job = self.store.get(ident)
-            if job and job.get('local_import'):
-                raise ValueError('Für lokale Clips bitte die TikTok-Uploadhilfe verwenden.')
+            if job and (job.get('local_import') or job.get('twitch_import')):
+                raise ValueError('Für manuell hinzugefügte Clips bitte die TikTok-Uploadhilfe verwenden.')
             if not job or job['state'] != 'review' or job.get('preview_rendering'):
                 raise ValueError('Dieser manuelle Export kann gerade nicht übergeben werden.')
             if not self.cfg.get('enabled'):
@@ -465,7 +465,9 @@ class Service:
         job=self.store.get(ident)
         if not job or job['state']!='queued': return
         ok,reason=self.store.eligible(job['clip'],self.cfg['channel'])
-        if not ok and not job.get('local_import'): self.store.update_if(ident,'queued','ignored',error=reason); return
+        if not ok and not (job.get('local_import') or job.get('twitch_import')):
+            self.store.update_if(ident,'queued','ignored',error=reason)
+            return
         source=self.root/'clips'/f'{ident}.mp4'; output=self.root/'renders'/f'{ident}.mp4'
         with self.store.lock:
             if self.stop.is_set() or not self.store.update_if(ident,'queued','downloading'): return
@@ -526,7 +528,8 @@ class Service:
     def claim_upload(self,ident,caption):
         job=self.store.get(ident)
         if not job: raise ValueError('Clip nicht gefunden.')
-        if job.get('local_import'): raise ValueError('Dieser Export ist für die lokale Verwendung bestimmt.')
+        if job.get('local_import') or job.get('twitch_import'):
+            raise ValueError('Dieser Export ist für die lokale Verwendung bestimmt.')
         if self.stop.is_set() or not self.cfg.get('enabled'): raise ValueError('Dienst ist angehalten.')
         ok,reason=self.store.eligible(job['clip'],self.cfg['channel'])
         if not ok: raise ValueError(reason)

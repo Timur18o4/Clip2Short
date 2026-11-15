@@ -130,6 +130,14 @@ def serve(service):
                     service.diagnostic(data); self.reply(200,{'ok':True}); return
                 if path=='/api/retry': service.retry(data['id']); self.reply(200,{'ok':True}); return
                 if path=='/api/remove': service.remove(data['id']); self.reply(200,{'ok':True}); return
+                if path in ('/api/twitch/inspect','/api/twitch/import','/api/twitch/list'):
+                    from . import twitch_import
+                    if path=='/api/twitch/list':
+                        result = twitch_import.channel_clips(service, data.get('page'))
+                    else:
+                        result = twitch_import.prepare(service, data.get('url',''), enqueue=path.endswith('/import'))
+                    self.reply(200,result)
+                    return
                 if path=='/api/update':
                     from .updater import request_check
                     request_check(service, manual=True)

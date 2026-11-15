@@ -1,5 +1,10 @@
 # Änderungen
 
+## 1.1.1
+
+- Öffentliche Twitch-Clips per Link mit Titel und Vorschaubild importieren.
+- Clips des eigenen Kanals mit „Mehr laden“ seitenweise anzeigen, auch über die letzten sieben Tage hinaus.
+
 ## 1.1.0
 
 - Einzelne Einträge aus der Verarbeitungsliste entfernen, mit Schutz vor erneutem Einreihen.

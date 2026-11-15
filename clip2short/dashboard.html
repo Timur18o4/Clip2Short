@@ -17,6 +17,17 @@ td:first-child{min-width:190px;max-width:300px;overflow-wrap:anywhere}
 <p class="muted">Bis 3 Minuten und 512 MB. Der Export bleibt lokal.</p>
 <p id="importStatus" role="status"></p>
 </section>
+<section class="box">
+<h2>Twitch-Clips hinzufügen</h2>
+<form id="twitchLinkForm">
+<label>Clip-Link <input id="twitchLink" type="url" required maxlength="2048" placeholder="https://clips.twitch.tv/…" style="width:min(460px,90%)"></label>
+<button>Vorschau laden</button>
+</form>
+<p><button id="browseTwitchClips">Clips meines Kanals laden</button></p>
+<p id="twitchImportStatus" role="status"></p>
+<div id="twitchClipCards" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px"></div>
+<p id="twitchMoreControls" hidden><button id="twitchMore">Mehr laden</button></p>
+</section>
 <details class="box"><summary>Updates</summary>
 <label><input type="checkbox" id="autoUpdate" style="width:auto"> Automatisch aktualisieren</label>
 <button id="checkUpdate">Jetzt nach Updates suchen</button>
@@ -112,6 +123,111 @@ document.querySelector('#importClip').onsubmit = async event => {
         button.disabled = false;
     }
 };
+const twitchCards = document.querySelector('#twitchClipCards');
+const twitchNotice = document.querySelector('#twitchImportStatus');
+const twitchMore = document.querySelector('#twitchMore');
+const visibleTwitchClips = new Set();
+let nextTwitchPage = null;
+let twitchListLoading = false;
+
+async function twitchRequest(action, data = {}) {
+    const response = await fetch('/api/twitch/' + action, {
+        method: 'POST',
+        headers: {Authorization:'Bearer '+key, 'Content-Type':'application/json'},
+        body: JSON.stringify(data)
+    });
+    if (response.status === 401) {
+        location.reload();
+        throw Error('Seite wird neu geladen.');
+    }
+    const result = await response.json();
+    if (!response.ok) throw Error(result.error);
+    return result;
+}
+
+function showTwitchClips(clips) {
+    for (const clip of clips) {
+        if (visibleTwitchClips.has(clip.url)) continue;
+        visibleTwitchClips.add(clip.url);
+        const card = document.createElement('article');
+        card.style.cssText = 'padding:12px;border:1px solid #494457;border-radius:10px;overflow-wrap:anywhere';
+        if (clip.thumbnail) {
+            const thumbnail = document.createElement('img');
+            thumbnail.src = clip.thumbnail;
+            thumbnail.alt = 'Vorschaubild';
+            thumbnail.loading = 'lazy';
+            thumbnail.referrerPolicy = 'no-referrer';
+            thumbnail.style.cssText = 'width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:6px';
+            card.append(thumbnail);
+        }
+        const title = document.createElement('strong');
+        title.textContent = clip.title;
+        const metadata = document.createElement('p');
+        const date = clip.created_at ? new Date(clip.created_at).toLocaleDateString('de-DE') : '';
+        metadata.textContent = [clip.channel, clip.category, date,
+            clip.duration ? Math.round(clip.duration) + ' s' : ''].filter(Boolean).join(' · ');
+        const button = document.createElement('button');
+        button.textContent = clip.known ? 'Bereits erfasst' : 'Verarbeiten';
+        button.disabled = clip.known;
+        button.onclick = async () => {
+            button.disabled = true;
+            twitchNotice.textContent = 'Clip wird geprüft …';
+            try {
+                await twitchRequest('import', {url: clip.url});
+                button.textContent = 'Eingereiht';
+                twitchNotice.textContent = 'Clip hinzugefügt. Der Export bleibt lokal.';
+                await refresh();
+            } catch (error) {
+                button.disabled = false;
+                twitchNotice.textContent = error.message;
+            }
+        };
+        card.append(title, metadata, button);
+        twitchCards.append(card);
+    }
+}
+
+async function loadTwitchClips(button, action, data, append = false) {
+    if (twitchListLoading) return;
+    twitchListLoading = true;
+    button.disabled = true;
+    twitchMore.disabled = true;
+    twitchNotice.textContent = 'Lade Twitch-Clips …';
+    if (!append) {
+        twitchCards.replaceChildren();
+        visibleTwitchClips.clear();
+        nextTwitchPage = null;
+        document.querySelector('#twitchMoreControls').hidden = true;
+    }
+    try {
+        const result = await twitchRequest(action, data);
+        const clips = action === 'list' ? result.clips : [result];
+        showTwitchClips(clips);
+        nextTwitchPage = result.next ?? null;
+        document.querySelector('#twitchMoreControls').hidden = !nextTwitchPage;
+        twitchNotice.textContent = action === 'list'
+            ? (visibleTwitchClips.size
+                ? visibleTwitchClips.size + ' Clips angezeigt.' + (nextTwitchPage ? '' : ' Keine weiteren Clips verfügbar.')
+                : 'Keine Clips gefunden.')
+            : '';
+    } catch (error) {
+        twitchNotice.textContent = error.message;
+    } finally {
+        button.disabled = false;
+        twitchMore.disabled = false;
+        twitchListLoading = false;
+    }
+}
+document.querySelector('#twitchLinkForm').onsubmit = event => {
+    event.preventDefault();
+    loadTwitchClips(event.currentTarget.querySelector('button'), 'inspect',
+        {url:document.querySelector('#twitchLink').value});
+};
+document.querySelector('#browseTwitchClips').onclick = event =>
+    loadTwitchClips(event.currentTarget, 'list');
+twitchMore.onclick = () => {
+    if (nextTwitchPage) loadTwitchClips(twitchMore, 'list', {page:nextTwitchPage}, true);
+};
 document.querySelector('#autoUpdate').onchange = event =>
     post('/api/settings', {auto_update:event.target.checked});
 document.querySelector('#checkUpdate').onclick = () => post('/api/update', {});
@@ -125,6 +241,6 @@ async function refreshUpdate(){
     } catch {}
 }
 document.querySelector('#jobs').onclick=e=>{let b=e.target.closest('button');if(!b)return;if(b.dataset.action==='remove'){if(confirm('Clip aus der Liste entfernen? Die Videodateien bleiben gespeichert.'))post('/api/remove',{id:b.dataset.id});return}if(b.dataset.action==='tiktokmanual'){prepareTikTok(b.dataset.id,b.dataset.variant);return}if(['view','viewpreview','original'].includes(b.dataset.action))viewVideo(b.dataset.id,b.dataset.action==='viewpreview',b.dataset.action==='original');else if(b.dataset.action==='manualupload'){if(confirm('Diesen manuellen Export an TikTok übergeben? Sichtbarkeit: '+(cfg.privacy==='SELF_ONLY'?'Nur ich':'Öffentlich')))post('/api/manual-upload',{id:b.dataset.id})}else if(b.dataset.action==='preview')post('/api/preview',{id:b.dataset.id});else post('/api/retry',{id:b.dataset.id})};
-async function refresh(){try{let r=await fetch('/api/status',{headers:{Authorization:'Bearer '+key}});if(r.status===401){location.reload();return}if(!r.ok)throw Error();let d=await r.json();cfg=d.config;displayedJobs=d.jobs;document.querySelector('#autoUpdate').checked=cfg.auto_update!==false;refreshUpdate();document.querySelector('#checkSource').textContent=cfg.clip_source==='twitch'?'Twitch prüfen':cfg.clip_source==='local'?'Dateiimport prüfen':'Lumia prüfen';document.querySelector('#status').textContent=(cfg.enabled?'':'ANGEHALTEN · ')+d.status;document.querySelector('#since').textContent=cfg.clip_source==='local'?'Lokale Videodateien':'Kanal: '+cfg.channel+' · Nur Clips nach '+new Date(d.armed_at).toLocaleString('de-DE');document.querySelector('#diagnostic').textContent=d.diagnostic.message||'';document.querySelector('#toggle').textContent=cfg.enabled?'Dienst anhalten':'Dienst fortsetzen';if(document.activeElement.id!=='privacy')document.querySelector('#privacy').value=cfg.privacy;if(!profileBuilt)buildProfiles();document.querySelector('#jobs').innerHTML=d.jobs.map(j=>'<tr><td>'+esc(j.editorial?.title||j.clip?.title||j.id)+'<br><small>Original: '+esc(j.clip?.title||'Titel noch nicht verfügbar')+'<br>'+esc(j.clip?.created_at?new Date(j.clip.created_at).toLocaleString('de-DE'):'')+(j.local_import?'<br>Lokale Datei<br>':'<br><a style="color:#ffd13f" target="_blank" rel="noreferrer" href="https://clips.twitch.tv/'+encodeURIComponent(j.id)+'">Auf Twitch öffnen</a><br>')+esc(j.id)+'</small></td><td>'+esc(j.category)+'</td><td>'+esc((j.scenes||[]).map(s=>names[s.name]).join(' → '))+'</td><td>'+esc(labels[j.state]||j.state)+(j.error||j.preview_error?'<br><small>'+esc([j.error,j.preview_error].filter(Boolean).join(' · '))+'</small>':'')+'</td><td>'+(j.clip?'<button data-action="original" data-id="'+esc(j.id)+'">Original ansehen</button>':'')+(j.state==='review'?'<a style="color:#ffd13f" href="/studio?clip='+encodeURIComponent(j.id)+'">Ausschnitt manuell wählen</a><br>':'')+(j.preview_rendering&&j.state==='review'?'<small>Lokaler Export läuft …</small><br>':'')+(j.output?'<button data-action="view" data-id="'+esc(j.id)+'">Video ansehen</button>':'')+(['uploaded','submitted'].includes(j.state)&&!j.manual_upload_requested?'<button data-action="preview" data-id="'+esc(j.id)+'" '+(j.preview_rendering?'disabled':'')+'>'+(j.preview_rendering?'KI-Vorschau läuft …':'KI-Vorschau erstellen')+'</button>':'')+(j.preview_output?'<button data-action="viewpreview" data-id="'+esc(j.id)+'">Lokalen Export ansehen</button>':'')+(!j.local_import&&j.state==='review'&&!j.preview_rendering&&j.preview_output?.endsWith(j.id+'-manual.mp4')?'<button data-action="manualupload" data-id="'+esc(j.id)+'">Auf TikTok hochladen</button>':'')+manualButton(j,'output','TikTok-Upload vorbereiten')+(j.preview_output!==j.output?manualButton(j,'preview_output','Vorschau für TikTok vorbereiten'):'')+(['error','review','ready'].includes(j.state)?'<button data-action="retry" data-id="'+esc(j.id)+'">Erneut versuchen</button>':'')+(removable(j)?'<button style="color:#ff8d99" data-action="remove" data-id="'+esc(j.id)+'">Entfernen</button>':'')+'</td></tr>').join('');document.querySelector('#details').textContent=d.jobs.length?JSON.stringify(d.jobs[0],null,2):'Noch kein neuer Clip.'}catch(e){document.querySelector('#status').textContent='Dienst nicht erreichbar'}}
+async function refresh(){try{let r=await fetch('/api/status',{headers:{Authorization:'Bearer '+key}});if(r.status===401){location.reload();return}if(!r.ok)throw Error();let d=await r.json();cfg=d.config;displayedJobs=d.jobs;document.querySelector('#autoUpdate').checked=cfg.auto_update!==false;refreshUpdate();document.querySelector('#checkSource').textContent=cfg.clip_source==='twitch'?'Twitch prüfen':cfg.clip_source==='local'?'Dateiimport prüfen':'Lumia prüfen';document.querySelector('#status').textContent=(cfg.enabled?'':'ANGEHALTEN · ')+d.status;document.querySelector('#since').textContent=cfg.clip_source==='local'?'Lokale Videodateien':'Kanal: '+cfg.channel+' · Nur Clips nach '+new Date(d.armed_at).toLocaleString('de-DE');document.querySelector('#diagnostic').textContent=d.diagnostic.message||'';document.querySelector('#toggle').textContent=cfg.enabled?'Dienst anhalten':'Dienst fortsetzen';if(document.activeElement.id!=='privacy')document.querySelector('#privacy').value=cfg.privacy;if(!profileBuilt)buildProfiles();document.querySelector('#jobs').innerHTML=d.jobs.map(j=>'<tr><td>'+esc(j.editorial?.title||j.clip?.title||j.id)+'<br><small>Original: '+esc(j.clip?.title||'Titel noch nicht verfügbar')+'<br>'+esc(j.clip?.created_at?new Date(j.clip.created_at).toLocaleString('de-DE'):'')+(j.local_import?'<br>Lokale Datei<br>':'<br><a style="color:#ffd13f" target="_blank" rel="noreferrer" href="https://clips.twitch.tv/'+encodeURIComponent(j.id)+'">Auf Twitch öffnen</a><br>')+esc(j.id)+'</small></td><td>'+esc(j.category)+'</td><td>'+esc((j.scenes||[]).map(s=>names[s.name]).join(' → '))+'</td><td>'+esc(labels[j.state]||j.state)+(j.error||j.preview_error?'<br><small>'+esc([j.error,j.preview_error].filter(Boolean).join(' · '))+'</small>':'')+'</td><td>'+(j.clip?'<button data-action="original" data-id="'+esc(j.id)+'">Original ansehen</button>':'')+(j.state==='review'?'<a style="color:#ffd13f" href="/studio?clip='+encodeURIComponent(j.id)+'">Ausschnitt manuell wählen</a><br>':'')+(j.preview_rendering&&j.state==='review'?'<small>Lokaler Export läuft …</small><br>':'')+(j.output?'<button data-action="view" data-id="'+esc(j.id)+'">Video ansehen</button>':'')+(['uploaded','submitted'].includes(j.state)&&!j.manual_upload_requested?'<button data-action="preview" data-id="'+esc(j.id)+'" '+(j.preview_rendering?'disabled':'')+'>'+(j.preview_rendering?'KI-Vorschau läuft …':'KI-Vorschau erstellen')+'</button>':'')+(j.preview_output?'<button data-action="viewpreview" data-id="'+esc(j.id)+'">Lokalen Export ansehen</button>':'')+(!j.local_import&&!j.twitch_import&&j.state==='review'&&!j.preview_rendering&&j.preview_output?.endsWith(j.id+'-manual.mp4')?'<button data-action="manualupload" data-id="'+esc(j.id)+'">Auf TikTok hochladen</button>':'')+manualButton(j,'output','TikTok-Upload vorbereiten')+(j.preview_output!==j.output?manualButton(j,'preview_output','Vorschau für TikTok vorbereiten'):'')+(['error','review','ready'].includes(j.state)?'<button data-action="retry" data-id="'+esc(j.id)+'">Erneut versuchen</button>':'')+(removable(j)?'<button style="color:#ff8d99" data-action="remove" data-id="'+esc(j.id)+'">Entfernen</button>':'')+'</td></tr>').join('');document.querySelector('#details').textContent=d.jobs.length?JSON.stringify(d.jobs[0],null,2):'Noch kein neuer Clip.'}catch(e){document.querySelector('#status').textContent='Dienst nicht erreichbar'}}
 refresh();setInterval(refresh,3000);
 </script></html>
